@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { useStore } from '../../contexts/StoreContext';
 import UiStore from 'src/frontend/stores/UiStore';
+import FileStore from 'src/frontend/stores/FileStore';
 import { Toggle } from 'widgets/checkbox';
 import { Slider } from 'widgets/slider';
 import { InfoButton } from 'widgets/notifications';
@@ -36,28 +37,18 @@ const handleKeyDown = (
 
 // moved the labes one item up to aling them visually in the ui
 const pageSizeOptions = [
-  { value: 0, label: '250' },
-  { value: 250 },
-  { value: 500, label: '1K' },
-  { value: 1000 },
-  { value: 1500, label: '2K' },
-  { value: 2000 },
-  { value: 2500, label: '3K' },
-  { value: 3000 },
-  { value: 3500, label: '4K' },
-  { value: 4000 },
-  { value: 4500, label: '5K' },
-  { value: 5000 },
-  { value: 5500, label: '6K' },
-  { value: 6000 },
-  { value: 6500, label: '7K' },
-  { value: 7000 },
-  { value: 7500, label: '8K' },
-  { value: 8000 },
-  { value: 8500, label: '9K' },
-  { value: 9000 },
-  { value: 9500, label: '10K' },
-  { value: 10000 },
+  { value: 25, label: '25' },
+  { value: 50, label: '50' },
+  { value: 100, label: '100' },
+  { value: 250, label: '250' },
+  { value: 500, label: '500' },
+  { value: 1000, label: '1K' },
+  { value: 2000, label: '2K' },
+  { value: 3000, label: '3K' },
+  { value: 4000, label: '4K' },
+  { value: 5000, label: '5K' },
+  { value: 7500, label: '7.5K' },
+  { value: 10000, label: '10K' },
 ];
 
 export const UsagePreferences = observer(() => {
@@ -149,9 +140,9 @@ export const UsagePreferences = observer(() => {
             onChange={fileStore.setPaginationSize}
             id="pagination-size-slider"
             options={pageSizeOptions}
-            min={pageSizeOptions[0].value}
+            min={FileStore.MIN_PAGINATION_SIZE}
             max={pageSizeOptions[pageSizeOptions.length - 1].value}
-            step={20}
+            step={25}
             secondaryInput={
               <input
                 type="number"
