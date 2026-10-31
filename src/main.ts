@@ -181,9 +181,9 @@ function createWindow() {
     childWindow.center(); // "center" in additionalOptions doesn't work :/
     childWindow.setMenu(null); // no toolbar needed
 
-    if (IS_DEV) {
-      childWindow.webContents.openDevTools();
-    }
+    // if (IS_DEV) {
+  //   childWindow.webContents.openDevTools();
+  // }
 
     mainWindow.webContents.once('will-navigate', () => {
       if (!childWindow.isDestroyed()) {
@@ -308,9 +308,9 @@ function createWindow() {
   }
 
   // Open the DevTools if in dev mode.
-  if (IS_DEV) {
-    mainWindow.webContents.openDevTools();
-  }
+  // if (IS_DEV) {
+  //   mainWindow.webContents.openDevTools();
+  // }
 
   // Emitted when the window is closed.
   mainWindow.on('closed', () => {
