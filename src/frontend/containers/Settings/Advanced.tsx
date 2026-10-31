@@ -10,6 +10,7 @@ import { Button, ButtonGroup, IconSet } from 'widgets';
 import { useStore } from '../../contexts/StoreContext';
 import { moveThumbnailDir } from '../../image/ThumbnailGeneration';
 import { ClearDbButton } from '../ErrorBoundary';
+import { Alert, DialogButton } from 'widgets/popovers';
 import { Callout } from 'widgets/notifications';
 import ExternalLink from 'src/frontend/components/ExternalLink';
 
