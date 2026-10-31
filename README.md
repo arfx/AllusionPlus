@@ -42,6 +42,53 @@ Find the latest version of Allusion on the [Releases](https://github.com/RafaUC/
 
 ## Development
 
+### Development Goals
+
+This fork aims to improve Allusion as a visual reference library, focusing on faster browsing, flexible file access, and better organization.
+
+#### Planned Features
+
+**1. High-Performance Image Loading & Gallery**
+
+Reference: [FlashView](https://flashview.net/de/)
+
+The goal is to adopt performance techniques inspired by game development and apply them to Allusion's image gallery.
+
+- Virtualized gallery: only visible tiles and a small buffer should need active resources.
+- Predictive thumbnail prefetching based on the current scroll position and direction.
+- Reuse image and memory resources to reduce unnecessary allocations.
+- Perform image decoding and thumbnail generation on background workers.
+- Use controlled background workloads to keep the UI responsive.
+- Make cached thumbnails available immediately whenever possible.
+
+**2. Folder Browser**
+
+Reference: [XnView MP](https://www.xnview.com/en/xnviewmp/)
+
+- Browse arbitrary folders directly from the file system.
+- Access images without importing them into the Allusion library.
+- Make it easier to explore temporary folders, external drives, and existing collections.
+- Use XnView MP's folder browsing workflow as a reference.
+
+**3. Ratings & Visual Organization**
+
+Reference: [Adobe Lightroom](https://www.adobe.com/products/photoshop-lightroom.html)
+
+- Rate images using a 0–5 star rating system.
+- Add color labels for quick visual categorization.
+- Filter and search images by rating and color label.
+- Use Lightroom's rating and color-label workflow as a reference.
+
+#### Implementation Order
+
+Features will be developed incrementally in the following order:
+
+1. High-Performance Image Loading & Gallery
+2. Folder Browser
+3. Ratings & Visual Organization
+
+The goal is to preserve Allusion's existing functionality while gradually extending it with these improvements.
+
 ### Quick Start
 
 You need to have [NodeJS](https://nodejs.org/en/download/) and a package manager such as [Yarn](https://yarnpkg.com/lang/en/docs/install/) installed.
