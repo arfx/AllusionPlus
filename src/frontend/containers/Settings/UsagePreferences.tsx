@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../../contexts/StoreContext';
 import UiStore from 'src/frontend/stores/UiStore';
 import FileStore from 'src/frontend/stores/FileStore';
@@ -51,14 +51,38 @@ const pageSizeOptions = [
   { value: 10000, label: '10K' },
 ];
 
+const sliderToPaginationSize = (sliderValue: number) =>
+  Math.round(
+    (FileStore.MIN_PAGINATION_SIZE *
+      Math.pow(10000 / FileStore.MIN_PAGINATION_SIZE, sliderValue / 1000)) /
+      25,
+  ) * 25;
+
+const paginationSizeToSlider = (paginationSize: number) =>
+  Math.round(
+    (Math.log(paginationSize / FileStore.MIN_PAGINATION_SIZE) /
+      Math.log(10000 / FileStore.MIN_PAGINATION_SIZE)) *
+      1000,
+  );
+
 export const UsagePreferences = observer(() => {
   const { uiStore, fileStore } = useStore();
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value, 10);
-    if (isNaN(val)) {
+  const [paginationInput, setPaginationInput] = useState(String(fileStore.paginationSize));
+
+  useEffect(() => {
+    setPaginationInput(String(fileStore.paginationSize));
+  }, [fileStore.paginationSize]);
+
+  const commitPaginationInput = () => {
+    const parsed = Number.parseInt(paginationInput, 10);
+    if (!Number.isFinite(parsed)) {
+      setPaginationInput(String(fileStore.paginationSize));
       return;
     }
-    fileStore.setPaginationSize(val);
+    const clamped = Math.min(10000, Math.max(FileStore.MIN_PAGINATION_SIZE, parsed));
+    const normalized = Math.round(clamped / 25) * 25;
+    fileStore.setPaginationSize(normalized);
+    setPaginationInput(String(normalized));
   };
 
   return (
@@ -127,7 +151,7 @@ export const UsagePreferences = observer(() => {
       <div className="vstack">
         <div id="page-size-controllers-container">
           <Slider
-            value={fileStore.paginationSize}
+            value={paginationSizeToSlider(fileStore.paginationSize)}
             label={
               <span>
                 <b>Pagination Size:</b> Number of files initially loaded and when reaching the
@@ -137,19 +161,34 @@ export const UsagePreferences = observer(() => {
                 </span>
               </span>
             }
-            onChange={fileStore.setPaginationSize}
+            onChange={(value) => fileStore.setPaginationSize(sliderToPaginationSize(value))}
             id="pagination-size-slider"
-            options={pageSizeOptions}
-            min={FileStore.MIN_PAGINATION_SIZE}
-            max={pageSizeOptions[pageSizeOptions.length - 1].value}
-            step={25}
+            options={pageSizeOptions.map((option) => ({
+              ...option,
+              value: paginationSizeToSlider(option.value),
+            }))}
+            min={0}
+            max={1000}
+            step={1}
             secondaryInput={
               <input
                 type="number"
                 className="input"
-                value={fileStore.paginationSize}
-                onChange={handleInputChange}
-                step={20}
+                min={FileStore.MIN_PAGINATION_SIZE}
+                max={10000}
+                value={paginationInput}
+                onChange={(e) => setPaginationInput(e.target.value)}
+                onBlur={commitPaginationInput}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitPaginationInput();
+                    e.currentTarget.blur();
+                  } else if (e.key === 'Escape') {
+                    setPaginationInput(String(fileStore.paginationSize));
+                    e.currentTarget.blur();
+                  }
+                }}
+                step={25}
               />
             }
           />
