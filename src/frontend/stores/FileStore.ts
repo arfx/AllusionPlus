@@ -81,7 +81,8 @@ const ContentLabels: Record<Content, string> = {
 const CUSTOM_THUMBNAILS_STORAGE_KEY = 'custom-thumbnail-ids';
 
 class FileStore {
-  static MIN_PAGINATION_SIZE = 250;
+  static MIN_PAGINATION_SIZE = 25;
+  static DEFAULT_PAGINATION_SIZE = 250;
 
   private readonly backend: DataStorage;
   private readonly rootStore: RootStore;
@@ -111,7 +112,7 @@ class FileStore {
   @observable orderBy: OrderBy<FileDTO> = 'dateAdded';
   @observable isNaturalOrderingEnabled: boolean = false;
   @observable orderByExtraProperty: ID = '';
-  @observable paginationSize: number = FileStore.MIN_PAGINATION_SIZE;
+  @observable paginationSize: number = FileStore.DEFAULT_PAGINATION_SIZE;
 
   @observable numTotalFiles = 0;
   @observable dirtyTotalFiles = true;
