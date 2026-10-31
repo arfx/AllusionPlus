@@ -89,12 +89,6 @@ const generateAndStoreThumbnail = async (
   thumbnailFilePath: string,
   imageBitmap?: ImageBitmap,
 ) => {
-  // Could already exist: maybe generated in another worker, when use scrolls up/down repeatedly
-  // but this doesn't help if we want to deliberately overwrite the thumbnail, but we don't have that currently
-  if (await fse.pathExists(thumbnailFilePath)) {
-    return thumbnailFilePath;
-  }
-
   let thumbnailData = await generateThumbnailData(filePath, imageBitmap);
   if (thumbnailData) {
     await fse.outputFile(thumbnailFilePath, Buffer.from(thumbnailData));
