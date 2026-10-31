@@ -166,7 +166,18 @@ export const Thumbnail = observer(
         }
 
         if (useThumbnail) {
-          //this line will throw an exception if the thumbnail generation gets rejected / throw
+          const cachedThumbnailPath = thumbnailPath.split('?')[0];
+
+          // Display an existing thumbnail immediately. Check freshness and refresh it
+          // in the background so the gallery does not wait for filesystem stats or decoding.
+          if (await fse.pathExists(cachedThumbnailPath)) {
+            void imageLoader.ensureThumbnail(file).catch((error) => {
+              console.error('Could not refresh thumbnail in the background:', file.absolutePath, error);
+            });
+            return thumbnailPath;
+          }
+
+          // No cached thumbnail exists yet, so wait for its first generation.
           await imageLoader.ensureThumbnail(file);
           return getThumbnail(file);
         } else {
