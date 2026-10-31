@@ -1,4 +1,6 @@
 import { getThumbnailPath, isDirEmpty } from 'common/fs';
+import { thumbnailFormat } from 'common/config';
+import fse from 'fs-extra';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect, useState } from 'react';
@@ -16,6 +18,23 @@ export const Advanced = observer(() => {
   const thumbnailDirectory = uiStore.thumbnailDirectory;
 
   const [defaultThumbnailDir, setDefaultThumbnailDir] = useState('');
+  const [isClearThumbnailCacheOpen, setIsClearThumbnailCacheOpen] = useState(false);
+
+  const clearThumbnailCache = async () => {
+    const entries = await fse.readdir(thumbnailDirectory);
+    for (const entry of entries) {
+      // Custom thumbnails are user-created assets and must always be preserved.
+      if (entry === 'forged') {
+        continue;
+      }
+      if (entry.endsWith(`.${thumbnailFormat}`)) {
+        await fse.remove(`${thumbnailDirectory}/${entry}`);
+      }
+    }
+    setIsClearThumbnailCacheOpen(false);
+    // Reinitialize file thumbnail paths and regenerate thumbnails as needed.
+    RendererMessenger.reload();
+  };
   useEffect(() => {
     RendererMessenger.getDefaultThumbnailDirectory().then(setDefaultThumbnailDir);
   }, []);
@@ -76,6 +95,12 @@ export const Advanced = observer(() => {
 
       <h3>Development</h3>
       <ButtonGroup>
+        <Button
+          onClick={() => setIsClearThumbnailCacheOpen(true)}
+          styling="outlined"
+          icon={IconSet.CLEAR_DATABASE}
+          text="Clear Thumbnail Cache"
+        />
         <ClearDbButton />
         <Button
           onClick={RendererMessenger.toggleDevTools}
@@ -84,6 +109,25 @@ export const Advanced = observer(() => {
           text="Toggle DevTools"
         />
       </ButtonGroup>
+      <Alert
+        open={isClearThumbnailCacheOpen}
+        icon={IconSet.CLEAR_DATABASE}
+        title="Clear generated thumbnail cache?"
+        primaryButtonText="Clear Cache"
+        onClick={async (button) => {
+          if (button === DialogButton.CloseButton) {
+            setIsClearThumbnailCacheOpen(false);
+          } else {
+            await clearThumbnailCache();
+          }
+        }}
+      >
+        <p>
+          This deletes generated thumbnail files from the thumbnail directory. They will be
+          recreated automatically as needed.
+        </p>
+        <p>Your custom thumbnails are preserved. Original images and the database are not changed.</p>
+      </Alert>
     </>
   );
 });
