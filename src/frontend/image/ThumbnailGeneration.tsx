@@ -159,9 +159,9 @@ export const useWorkerListener = () => {
         console.error('Could not generate thumbnail', `worker ${i}`, err);
         // Worker errors do not consistently expose the originating file id.
         // Fail every request assigned to this worker so none remain stuck.
-        for (const [fileId, workerIndex] of workerByFileId) {
-          if (workerIndex === i) {
-            finishRequest(fileId, false, workerByFileId.get(fileId)?.requestToken);
+        for (const [fileId, request] of workerByFileId) {
+          if (request.workerIndex === i) {
+            finishRequest(fileId, false, request.requestToken);
           }
         }
       };
