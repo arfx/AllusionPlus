@@ -134,18 +134,34 @@ const insertIntoQueue = (data: IThumbnailMessage) => {
 
 const addToQueue = (data: IThumbnailMessage) => {
   if (queue.length >= MAX_QUEUE_LENGTH) {
-    // Keep higher-priority visible thumbnails and discard the least important
-    // queued request. Equal priorities retain FIFO ordering.
+    // Keep higher-priority visible thumbnails and discard speculative work first.
     let lowestIndex = 0;
     for (let i = 1; i < queue.length; i++) {
       if ((queue[i].priority ?? 0) < (queue[lowestIndex].priority ?? 0)) {
         lowestIndex = i;
       }
     }
-    if ((data.priority ?? 0) < (queue[lowestIndex].priority ?? 0)) {
+
+    const incomingPriority = data.priority ?? 0;
+    const lowestPriority = queue[lowestIndex].priority ?? 0;
+
+    if (incomingPriority < lowestPriority) {
       reportDroppedRequest(data);
       return;
     }
+
+    if (incomingPriority === lowestPriority) {
+      // Priority 3 is currently visible in the viewport. Never defer visible
+      // work just because the queue is busy; the renderer bounds mounted cells.
+      // Speculative requests (priority 0-2) can be dropped to favor newer work.
+      if (incomingPriority >= 3) {
+        insertIntoQueue(data);
+      } else {
+        reportDroppedRequest(data);
+      }
+      return;
+    }
+
     reportDroppedRequest(queue.splice(lowestIndex, 1)[0]);
   }
 
