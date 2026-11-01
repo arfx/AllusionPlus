@@ -22,6 +22,7 @@ export interface IThumbnailMessageResponse {
   fileId: ID;
   thumbnailPath: string;
   success?: boolean;
+  deferred?: boolean;
   requestToken: number;
 }
 
@@ -39,7 +40,14 @@ for (let i = 0; i < NUM_THUMBNAIL_WORKERS; i++) {
 let lastSubmittedWorker = 0;
 let nextRequestToken = 1;
 
-type Callback = (success: boolean) => void;
+export class ThumbnailRequestDeferredError extends Error {
+  constructor() {
+    super('Thumbnail request deferred because the worker queue is full');
+    this.name = 'ThumbnailRequestDeferredError';
+  }
+}
+
+type Callback = (success: boolean, deferred?: boolean) => void;
 /** Callbacks waiting for a thumbnail request to finish. */
 const listeners = new Map<ID, Callback[]>();
 /** The worker currently responsible for each request (including queued requests). */
@@ -47,7 +55,7 @@ const workerByFileId = new Map<ID, { workerIndex: number; requestToken: number }
 /** One timeout per request, shared by all callers waiting for the same file. */
 const timeoutByFileId = new Map<ID, number>();
 
-const finishRequest = (fileId: ID, success: boolean, requestToken?: number) => {
+const finishRequest = (fileId: ID, success: boolean, requestToken?: number, deferred = false) => {
   const currentRequest = workerByFileId.get(fileId);
   if (requestToken !== undefined && currentRequest?.requestToken !== requestToken) {
     return; // Ignore late responses from a request that already timed out.
@@ -60,7 +68,7 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number) => {
   workerByFileId.delete(fileId);
   const callbacks = listeners.get(fileId);
   if (callbacks) {
-    callbacks.forEach((callback) => callback(success));
+    callbacks.forEach((callback) => callback(success, deferred));
     listeners.delete(fileId);
   }
 };
@@ -91,7 +99,9 @@ export const generateThumbnailUsingWorker = action(
       // Reuse an in-flight request instead of starting another timer or worker job.
       const existingListeners = listeners.get(file.id);
       if (existingListeners) {
-        existingListeners.push((success) => (success ? resolve() : reject()));
+        existingListeners.push((success, deferred) =>
+          success ? resolve() : reject(deferred ? new ThumbnailRequestDeferredError() : undefined),
+        );
         // A cell may have moved from overscan into the visible viewport while
         // its request is still queued. Promote that existing request in-place.
         const currentRequest = workerByFileId.get(file.id);
@@ -106,7 +116,10 @@ export const generateThumbnailUsingWorker = action(
         return;
       }
 
-      listeners.set(msg.fileId, [(success) => (success ? resolve() : reject())]);
+      listeners.set(msg.fileId, [
+        (success, deferred) =>
+          success ? resolve() : reject(deferred ? new ThumbnailRequestDeferredError() : undefined),
+      ]);
 
       const workerIndex = lastSubmittedWorker;
       lastSubmittedWorker = (lastSubmittedWorker + 1) % workers.length;
