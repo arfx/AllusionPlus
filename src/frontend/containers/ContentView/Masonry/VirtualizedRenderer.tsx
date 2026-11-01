@@ -53,6 +53,8 @@ const VirtualizedRenderer = observer(
     const [endRenderIndex, setEndRenderIndex] = useState(0);
     const [visibleStartIndex, setVisibleStartIndex] = useState(0);
     const [visibleEndIndex, setVisibleEndIndex] = useState(0);
+    const lastScrollTop = useRef(0);
+    const scrollDirection = useRef<'up' | 'down'>('down');
     const numImages = fileStore.fileDimensions.length;
     const { isSlideMode, firstItemIndex: firstItem } = uiStore;
 
@@ -64,6 +66,10 @@ const VirtualizedRenderer = observer(
         const viewport = wrapperRef.current;
         const yOffset = viewport?.scrollTop || 0;
         const viewportHeight = viewport?.clientHeight || 0;
+        if (yOffset !== lastScrollTop.current) {
+          scrollDirection.current = yOffset > lastScrollTop.current ? 'down' : 'up';
+          lastScrollTop.current = yOffset;
+        }
 
         const firstImageIndex = findViewportEdge(yOffset, numImages, layout);
         const visibleEnd = findViewportEdge(yOffset + viewportHeight, numImages, layout);
@@ -237,7 +243,15 @@ const VirtualizedRenderer = observer(
                 mounted
                 transform={transform}
                 thumbnailPriority={
-                  fileListIndex >= visibleStartIndex && fileListIndex <= visibleEndIndex ? 2 : 1
+                  fileListIndex >= visibleStartIndex && fileListIndex <= visibleEndIndex
+                    ? 3
+                    : scrollDirection.current === 'down'
+                      ? fileListIndex > visibleEndIndex
+                        ? 2
+                        : 1
+                      : fileListIndex < visibleStartIndex
+                        ? 2
+                        : 1
                 }
                 // Force to load the full resolution image when the img dimensions on screen are larger than the thumbnail image resolution
                 // Otherwise you'll see very low res images. This is usually only the case for images with extreme aspect ratios
