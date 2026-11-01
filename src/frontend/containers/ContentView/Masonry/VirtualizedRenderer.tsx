@@ -53,6 +53,8 @@ const VirtualizedRenderer = observer(
     const [endRenderIndex, setEndRenderIndex] = useState(0);
     const [visibleStartIndex, setVisibleStartIndex] = useState(0);
     const [visibleEndIndex, setVisibleEndIndex] = useState(0);
+    const [isScrolling, setIsScrolling] = useState(false);
+    const scrollEndTimer = useRef<number | undefined>(undefined);
     const lastScrollTop = useRef(0);
     const scrollDirection = useRef<'up' | 'down'>('down');
     const numImages = fileStore.fileDimensions.length;
@@ -170,6 +172,14 @@ const VirtualizedRenderer = observer(
     }, [fileStore]);
 
     const handleScroll = useCallback(() => {
+      setIsScrolling(true);
+      if (scrollEndTimer.current !== undefined) {
+        window.clearTimeout(scrollEndTimer.current);
+      }
+      scrollEndTimer.current = window.setTimeout(() => {
+        setIsScrolling(false);
+        scrollEndTimer.current = undefined;
+      }, 180);
       throttledRedetermine.current(
         numImages,
         overscan || 0,
@@ -179,6 +189,12 @@ const VirtualizedRenderer = observer(
       );
       checkPagination();
     }, [numImages, overscan, isSlideMode, checkPagination]);
+
+    useEffect(() => () => {
+      if (scrollEndTimer.current !== undefined) {
+        window.clearTimeout(scrollEndTimer.current);
+      }
+    }, []);
 
     // The index currently selected image, or the "last selected" image when a range is selected,
     const lastSelIndex = lastSelectionIndex.current
@@ -249,6 +265,7 @@ const VirtualizedRenderer = observer(
                 key={im.id}
                 file={im}
                 mounted
+                isScrolling={isScrolling}
                 transform={transform}
                 thumbnailPriority={
                   fileListIndex >= visibleStartIndex && fileListIndex <= visibleEndIndex
