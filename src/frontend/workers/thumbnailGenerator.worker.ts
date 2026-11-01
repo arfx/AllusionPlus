@@ -141,7 +141,7 @@ const addToQueue = (data: IThumbnailMessage) => {
         lowestIndex = i;
       }
     }
-    if ((data.priority ?? 0) <= (queue[lowestIndex].priority ?? 0)) {
+    if ((data.priority ?? 0) < (queue[lowestIndex].priority ?? 0)) {
       reportDroppedRequest(data);
       return;
     }
