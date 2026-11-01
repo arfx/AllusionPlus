@@ -159,7 +159,7 @@ class ImageLoader {
     );
   }
 
-  async ensureThumbnail(file: ClientFile): Promise<boolean> {
+  async ensureThumbnail(file: ClientFile, priority = 0): Promise<boolean> {
     // Never regenerate over a user-assigned custom thumbnail.
     if (file.hasCustomThumbnail) {
       return false;
@@ -183,7 +183,7 @@ class ImageLoader {
     switch (handlerType) {
       case 'web':
         try {
-          await generateThumbnailUsingWorker(file, thumbnailPath);
+          await generateThumbnailUsingWorker(file, thumbnailPath, true, 10000, priority);
           updateThumbnailPath(file, thumbnailPath);
         } catch {
           // Chromium couldn't decode this file (e.g. some large/iPhone JPEGs, or
