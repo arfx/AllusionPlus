@@ -157,6 +157,7 @@ export const Thumbnail = observer(
       mounted,
       thumbnailPath, // dependency to re-execute
       uiStore.isList || (!forceNoThumbnail && !isPlaying),
+      thumbnailPriority,
       async (file, isBroken, mounted, thumbnailPath, useThumbnail, priority) => {
         // If it is broken, only show thumbnail if it exists.
         if (!mounted || isBroken === true) {
