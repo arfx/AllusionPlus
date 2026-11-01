@@ -35,8 +35,26 @@ for (let i = 0; i < NUM_THUMBNAIL_WORKERS; i++) {
 let lastSubmittedWorker = 0;
 
 type Callback = (success: boolean) => void;
-/** A map of File ID and a callback function for when thumbnail generation is finished or has failed */
+/** Callbacks waiting for a thumbnail request to finish. */
 const listeners = new Map<ID, Callback[]>();
+/** The worker currently responsible for each request (including queued requests). */
+const workerByFileId = new Map<ID, number>();
+/** One timeout per request, shared by all callers waiting for the same file. */
+const timeoutByFileId = new Map<ID, number>();
+
+const finishRequest = (fileId: ID, success: boolean) => {
+  const timeout = timeoutByFileId.get(fileId);
+  if (timeout !== undefined) {
+    window.clearTimeout(timeout);
+    timeoutByFileId.delete(fileId);
+  }
+  workerByFileId.delete(fileId);
+  const callbacks = listeners.get(fileId);
+  if (callbacks) {
+    callbacks.forEach((callback) => callback(success));
+    listeners.delete(fileId);
+  }
+};
 
 /**
  * Generates a thumbnail in a Worker: {@link ../workers/thumbnailGenerator.worker}
@@ -53,45 +71,59 @@ export const generateThumbnailUsingWorker = action(
     };
 
     return new Promise<void>((resolve, reject) => {
-      setTimeout(() => {
-        if (listeners.has(msg.fileId)) {
-          // Remove the image from the queue when timeout occurs
-          workers[lastSubmittedWorker].postMessage({
-            type: 'cancel',
-            fileId: msg.fileId,
-          });
-          timeoutReject ? reject() : resolve();
-          listeners.delete(msg.fileId);
-          //console.debug(`timeout: unable to generate thumbnail for ${file.name}, retrying: ${!timeoutReject}`);
-        }
-      }, timeout);
-
-      // Might already be in progress if called earlier
+      // Reuse an in-flight request instead of starting another timer or worker job.
       const existingListeners = listeners.get(file.id);
       if (existingListeners) {
         existingListeners.push((success) => (success ? resolve() : reject()));
         return;
       }
 
-      // Otherwise, create a new listener and submit to a worker
       listeners.set(msg.fileId, [(success) => (success ? resolve() : reject())]);
+
+      const workerIndex = lastSubmittedWorker;
+      lastSubmittedWorker = (lastSubmittedWorker + 1) % workers.length;
+      workerByFileId.set(msg.fileId, workerIndex);
+
+      const timeoutId = window.setTimeout(() => {
+        if (!listeners.has(msg.fileId)) {
+          return;
+        }
+        // Cancel on the worker that actually owns this request, not whichever
+        // worker happened to receive the most recent request.
+        workers[workerIndex].postMessage({ type: 'cancel', fileId: msg.fileId });
+        timeoutReject ? finishRequest(msg.fileId, false) : finishRequest(msg.fileId, true);
+        //console.debug(`timeout: unable to generate thumbnail for ${file.name}, retrying: ${!timeoutReject}`);
+      }, timeout);
+      timeoutByFileId.set(msg.fileId, timeoutId);
+
+      const submit = (transfer?: Transferable[]) => {
+        if (!listeners.has(msg.fileId)) {
+          // The request timed out while a video frame was being prepared.
+          if (msg.imageBitmap) {
+            msg.imageBitmap.close();
+          }
+          return;
+        }
+        if (transfer) {
+          workers[workerIndex].postMessage(msg, transfer);
+        } else {
+          workers[workerIndex].postMessage(msg);
+        }
+      };
+
       if (isFileExtensionVideo(file.extension)) {
-        // get a frame bitmap using a <video> element and let it handle the video and the decoding.
-        // we do this in the main thread and send the ImageBitmap to the worker since workers cannot create DOM elements
-        // Todo: it would be more perfomant to do the whole decoding in the worker but that will need a more complex implementation.
+        // Decode video frames on the main thread; workers cannot create DOM videos.
         generateVideoThumbnailBitmap(file.absolutePath)
           .then((bitmap) => {
             msg.imageBitmap = bitmap;
-            workers[lastSubmittedWorker].postMessage(msg, [bitmap]);
-            lastSubmittedWorker = (lastSubmittedWorker + 1) % workers.length;
+            submit([bitmap]);
           })
           .catch((err) => {
-            console.error(err);
-            reject(err);
+            console.error('Could not prepare video thumbnail:', file.absolutePath, err);
+            finishRequest(msg.fileId, false);
           });
       } else {
-        workers[lastSubmittedWorker].postMessage(msg);
-        lastSubmittedWorker = (lastSubmittedWorker + 1) % workers.length;
+        submit();
       }
     });
   },
@@ -105,35 +137,17 @@ export const useWorkerListener = () => {
   useEffect(() => {
     for (let i = 0; i < workers.length; i++) {
       workers[i].onmessage = (e: { data: IThumbnailMessageResponse }) => {
-        const { fileId } = e.data;
-
-        const callbacks = listeners.get(fileId);
-        if (callbacks) {
-          callbacks.forEach((cb) => cb(true));
-          listeners.delete(fileId);
-        } else {
-          console.debug(
-            'No callbacks found for fileId after successful thumbnail creation:',
-            fileId,
-            'Might have timed out',
-          );
-        }
+        finishRequest(e.data.fileId, true);
       };
 
       workers[i].onerror = (err) => {
         console.error('Could not generate thumbnail', `worker ${i}`, err);
-        const fileId = err.message;
-
-        const callbacks = listeners.get(fileId);
-        if (callbacks) {
-          callbacks.forEach((cb) => cb(false));
-          listeners.delete(fileId);
-        } else {
-          console.debug(
-            'No callbacks found for fileId after unsuccessful thumbnail creation:',
-            fileId,
-            'Might have timed out',
-          );
+        // Worker errors do not consistently expose the originating file id.
+        // Fail every request assigned to this worker so none remain stuck.
+        for (const [fileId, workerIndex] of workerByFileId) {
+          if (workerIndex === i) {
+            finishRequest(fileId, false);
+          }
         }
       };
     }
