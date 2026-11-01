@@ -104,8 +104,8 @@ const ctx: Worker = self as any;
 // Set up a queue of thumbnails that need to be processed
 // Without a queue, I've had to restart my computer since everything froze
 // (not 100% sure whether that was the cause)
-// TODO: Max queue length, so that when the user scrolls a lot, the most recent images will show up earlier?
-// (-> discard old requests)
+// Keep speculative work bounded so rapid scrolling does not build an ever-growing backlog.
+// Visible requests may exceed this soft limit rather than being discarded.
 const queue: IThumbnailMessage[] = [];
 const MAX_PARALLEL_THUMBNAILS = 4; // Related to amount of workers. Currently 4 workers with 4 thumbs in parallel = 16 thumbs parallel total
 const MAX_QUEUE_LENGTH = 8;
