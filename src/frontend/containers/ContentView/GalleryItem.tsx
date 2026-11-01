@@ -24,6 +24,7 @@ interface ItemProps {
   hovered?: boolean;
   galleryVideoPlaybackMode?: GalleryVideoPlaybackMode;
   thumbnailPriority?: number;
+  isScrolling?: boolean;
 }
 
 interface MasonryItemProps extends ItemProps {
@@ -39,6 +40,7 @@ export const MasonryCell = observer(
     forceNoThumbnail,
     transform: [width, height, top, left],
     thumbnailPriority,
+    isScrolling,
   }: MasonryItemProps) => {
     const { uiStore, fileStore } = useStore();
     const [isHovered, setIsHovered] = useState(false);
@@ -88,6 +90,7 @@ export const MasonryCell = observer(
             mounted={mounted}
             file={file}
             thumbnailPriority={thumbnailPriority}
+            isScrolling={isScrolling}
             forceNoThumbnail={forceNoThumbnail}
             hovered={isHovered}
             galleryVideoPlaybackMode={uiStore.galleryVideoPlaybackMode}
@@ -152,6 +155,7 @@ export const Thumbnail = observer(
     hovered,
     galleryVideoPlaybackMode,
     thumbnailPriority = 0,
+    isScrolling = false,
   }: ItemProps) => {
     const { uiStore, imageLoader } = useStore();
     const { thumbnailPath, isBroken } = file;
@@ -246,13 +250,15 @@ export const Thumbnail = observer(
       if (!(file.extension === 'gif' || isFileExtensionVideo(file.extension))) {
         return;
       }
-      if (hovered) {
+      // Do not decode/play animated media while the user is actively scrolling.
+      // If the pointer remains over an item, playback resumes once scrolling settles.
+      if (hovered && !isScrolling) {
         setIsPlaying(true);
       } else if (isPlaying !== undefined) {
         setIsPlaying(false);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [file.extension, hovered]);
+    }, [file.extension, hovered, isScrolling]);
     useEffect(() => {
       if (!(file.extension === 'gif' || isFileExtensionVideo(file.extension))) {
         return;
