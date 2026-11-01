@@ -11,7 +11,9 @@ import { MasonryCell } from '../GalleryItem';
 import { Layouter, findViewportEdge } from './layout-helpers';
 import { isFileExtensionVideo } from 'common/fs';
 
-const SCROLL_PAGE_THRESHOLD = 200;
+// Start loading the next page before the user reaches the end of the current one.
+const SCROLL_PAGE_PREFETCH_VIEWPORTS = 1.5;
+const MIN_SCROLL_PAGE_PREFETCH = 800;
 
 interface IRendererProps {
   containerHeight: number;
@@ -82,7 +84,7 @@ const VirtualizedRenderer = observer(
       debouncedThrottle(
         (numImages: number, overdraw: number, setFirstItem?: boolean) =>
           determineRenderRegion(numImages, overdraw, setFirstItem),
-        200,
+        60,
       ),
     );
 
