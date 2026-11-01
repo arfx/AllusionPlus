@@ -9,7 +9,7 @@ import { FileDTO, IMG_EXTENSIONS_TYPE } from '../../api/file';
 import { ClientFile } from '../entities/File';
 import ExrLoader from './ExrLoader';
 import PsdLoader from './PSDLoader';
-import { generateThumbnailUsingWorker } from './ThumbnailGeneration';
+import { generateThumbnailUsingWorker, ThumbnailRequestDeferredError } from './ThumbnailGeneration';
 import TifLoader from './TifLoader';
 import { generateThumbnail, getBlob } from './util';
 import { isFileExtensionVideo } from 'common/fs';
@@ -185,7 +185,13 @@ class ImageLoader {
         try {
           await generateThumbnailUsingWorker(file, thumbnailPath, true, 10000, priority);
           updateThumbnailPath(file, thumbnailPath);
-        } catch {
+        } catch (error) {
+          // A low-priority queued request was deferred, not failed to decode.
+          // Do not invoke the expensive OS fallback; a later visible-priority
+          // request can enqueue it again.
+          if (error instanceof ThumbnailRequestDeferredError) {
+            throw error;
+          }
           // Chromium couldn't decode this file (e.g. some large/iPhone JPEGs, or
           // HEVC/ProRes video). Fall back to the OS decoder for a poster thumbnail.
           if (await this.generateOsThumbnail(absolutePath, thumbnailPath)) {
