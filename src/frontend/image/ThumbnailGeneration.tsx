@@ -135,7 +135,7 @@ export const generateThumbnailUsingWorker = action(
           })
           .catch((err) => {
             console.error('Could not prepare video thumbnail:', file.absolutePath, err);
-            finishRequest(msg.fileId, false);
+            finishRequest(msg.fileId, false, msg.requestToken);
           });
       } else {
         submit();
