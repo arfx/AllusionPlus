@@ -236,6 +236,9 @@ const VirtualizedRenderer = observer(
                 file={im}
                 mounted
                 transform={transform}
+                thumbnailPriority={
+                  fileListIndex >= visibleStartIndex && fileListIndex <= visibleEndIndex ? 2 : 1
+                }
                 // Force to load the full resolution image when the img dimensions on screen are larger than the thumbnail image resolution
                 // Otherwise you'll see very low res images. This is usually only the case for images with extreme aspect ratios
                 // TODO: Not the best solution; could generate multiple thumbnails of other resolutions
