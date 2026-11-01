@@ -138,17 +138,17 @@ export const Advanced = observer(() => {
       </div>
 
       <h3>Thumbnail Diagnostics</h3>
-      <p>Live counters for this application session. Cache size is scanned from the selected thumbnail directory.</p>
-      <div className="thumbnail-diagnostics">
-        <div><strong>{diagnostics.inFlight}</strong><span>In progress</span></div>
-        <div><strong>{diagnostics.requested}</strong><span>Requests</span></div>
-        <div><strong>{diagnostics.succeeded}</strong><span>Generated</span></div>
-        <div><strong>{diagnostics.failed}</strong><span>Failed</span></div>
-        <div><strong>{diagnostics.deferred}</strong><span>Deferred</span></div>
-        <div><strong>{diagnostics.lastDurationMs} ms</strong><span>Last generation</span></div>
-        <div><strong>{Math.round(averageDuration)} ms</strong><span>Average duration</span></div>
-        <div><strong>{cacheStats ? cacheStats.files.toLocaleString() : '—'}</strong><span>Cached thumbnails</span></div>
-        <div><strong>{cacheStats ? formatBytes(cacheStats.bytes) : '—'}</strong><span>Cache size</span></div>
+      <p>Live counters for this application session. Cached thumbnails are counted separately; cache hits are not included in generation requests.</p>
+      <div className="thumbnail-diagnostics" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, margin: '12px 0' }}>
+        <div><strong>{diagnostics.inFlight}</strong><br /><span>In progress</span></div>
+        <div><strong>{diagnostics.requested}</strong><br /><span>Requests</span></div>
+        <div><strong>{diagnostics.succeeded}</strong><br /><span>Generated</span></div>
+        <div><strong>{diagnostics.failed}</strong><br /><span>Failed</span></div>
+        <div><strong>{diagnostics.deferred}</strong><br /><span>Deferred</span></div>
+        <div><strong>{diagnostics.lastDurationMs} ms</strong><br /><span>Last request</span></div>
+        <div><strong>{Math.round(averageDuration)} ms</strong><br /><span>Average request</span></div>
+        <div><strong>{cacheStats ? cacheStats.files.toLocaleString() : '—'}</strong><br /><span>Cached thumbnails</span></div>
+        <div><strong>{cacheStats ? formatBytes(cacheStats.bytes) : '—'}</strong><br /><span>Cache size</span></div>
       </div>
       <ButtonGroup>
         <Button
