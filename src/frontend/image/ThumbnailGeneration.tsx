@@ -182,8 +182,11 @@ export const generateThumbnailUsingWorker = action(
  */
 export const useWorkerListener = () => {
   useEffect(() => {
-    for (let i = 0; i < workers.length; i++) {
-      workers[i].onmessage = (e: { data: IThumbnailMessageResponse }) => {
+    let disposed = false;
+
+    const attachListeners = (workerIndex: number) => {
+      const worker = workers[workerIndex];
+      worker.onmessage = (e: { data: IThumbnailMessageResponse }) => {
         finishRequest(
           e.data.fileId,
           e.data.success !== false,
@@ -192,18 +195,36 @@ export const useWorkerListener = () => {
         );
       };
 
-      workers[i].onerror = (err) => {
-        console.error('Could not generate thumbnail', `worker ${i}`, err);
+      worker.onerror = (err) => {
+        console.error('Could not generate thumbnail', `worker ${workerIndex}`, err);
         // Worker errors do not consistently expose the originating file id.
         // Fail every request assigned to this worker so none remain stuck.
         for (const [fileId, request] of workerByFileId) {
-          if (request.workerIndex === i) {
+          if (request.workerIndex === workerIndex) {
             finishRequest(fileId, false, request.requestToken);
           }
         }
+
+        // A failed Worker cannot be relied on for future requests. Replace it
+        // so one decoding/runtime error does not permanently reduce capacity.
+        if (!disposed) {
+          worker.terminate();
+          workers[workerIndex] = new Worker(
+            new URL('src/frontend/workers/thumbnailGenerator.worker', import.meta.url),
+          );
+          attachListeners(workerIndex);
+        }
       };
+    };
+
+    for (let i = 0; i < workers.length; i++) {
+      attachListeners(i);
     }
-    return () => workers.forEach((worker) => worker.terminate());
+
+    return () => {
+      disposed = true;
+      workers.forEach((worker) => worker.terminate());
+    };
   }, []);
 };
 
