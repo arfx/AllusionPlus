@@ -51,6 +51,8 @@ const VirtualizedRenderer = observer(
     const scrollAnchor = useRef<HTMLDivElement>(null);
     const [startRenderIndex, setStartRenderIndex] = useState(0);
     const [endRenderIndex, setEndRenderIndex] = useState(0);
+    const [visibleStartIndex, setVisibleStartIndex] = useState(0);
+    const [visibleEndIndex, setVisibleEndIndex] = useState(0);
     const numImages = fileStore.fileDimensions.length;
     const { isSlideMode, firstItemIndex: firstItem } = uiStore;
 
@@ -64,6 +66,9 @@ const VirtualizedRenderer = observer(
         const viewportHeight = viewport?.clientHeight || 0;
 
         const firstImageIndex = findViewportEdge(yOffset, numImages, layout);
+        const visibleEnd = findViewportEdge(yOffset + viewportHeight, numImages, layout);
+        setVisibleStartIndex(firstImageIndex);
+        setVisibleEndIndex(visibleEnd);
         const start = findViewportEdge(yOffset - overdraw, numImages, layout);
         const end = findViewportEdge(yOffset + viewportHeight + overdraw, numImages, layout);
 
