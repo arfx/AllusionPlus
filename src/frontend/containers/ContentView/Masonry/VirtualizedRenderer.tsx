@@ -154,10 +154,18 @@ const VirtualizedRenderer = observer(
       const distanceToPrev = scrollTop;
       if (needsLoadNext && (!needsLoadPrev || distanceToNext <= distanceToPrev)) {
         loadingPage.current = 'after';
-        fileStore.fetchAfter();
+        void fileStore.fetchAfter().then((updated) => {
+          if (!updated && loadingPage.current === 'after') {
+            loadingPage.current = null;
+          }
+        });
       } else if (needsLoadPrev) {
         loadingPage.current = 'before';
-        fileStore.fetchBefore();
+        void fileStore.fetchBefore().then((updated) => {
+          if (!updated && loadingPage.current === 'before') {
+            loadingPage.current = null;
+          }
+        });
       }
     }, [fileStore]);
 
