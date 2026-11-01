@@ -55,6 +55,38 @@ const workerByFileId = new Map<ID, { workerIndex: number; requestToken: number }
 /** One timeout per request, shared by all callers waiting for the same file. */
 const timeoutByFileId = new Map<ID, number>();
 
+type ThumbnailDiagnostics = {
+  requested: number;
+  succeeded: number;
+  failed: number;
+  deferred: number;
+  inFlight: number;
+  totalDurationMs: number;
+  lastDurationMs: number;
+};
+
+const thumbnailDiagnostics: ThumbnailDiagnostics = {
+  requested: 0,
+  succeeded: 0,
+  failed: 0,
+  deferred: 0,
+  inFlight: 0,
+  totalDurationMs: 0,
+  lastDurationMs: 0,
+};
+const requestStartedAt = new Map<ID, number>();
+
+export const getThumbnailDiagnostics = (): ThumbnailDiagnostics => ({ ...thumbnailDiagnostics });
+
+export const resetThumbnailDiagnostics = () => {
+  thumbnailDiagnostics.requested = 0;
+  thumbnailDiagnostics.succeeded = 0;
+  thumbnailDiagnostics.failed = 0;
+  thumbnailDiagnostics.deferred = 0;
+  thumbnailDiagnostics.totalDurationMs = 0;
+  thumbnailDiagnostics.lastDurationMs = 0;
+};
+
 const finishRequest = (fileId: ID, success: boolean, requestToken?: number, deferred = false) => {
   const currentRequest = workerByFileId.get(fileId);
   if (requestToken !== undefined && currentRequest?.requestToken !== requestToken) {
@@ -66,6 +98,17 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number, defe
     timeoutByFileId.delete(fileId);
   }
   workerByFileId.delete(fileId);
+  const startedAt = requestStartedAt.get(fileId);
+  if (startedAt !== undefined) {
+    const duration = Date.now() - startedAt;
+    requestStartedAt.delete(fileId);
+    thumbnailDiagnostics.inFlight = Math.max(0, thumbnailDiagnostics.inFlight - 1);
+    thumbnailDiagnostics.lastDurationMs = duration;
+    thumbnailDiagnostics.totalDurationMs += duration;
+    if (deferred) thumbnailDiagnostics.deferred++;
+    else if (success) thumbnailDiagnostics.succeeded++;
+    else thumbnailDiagnostics.failed++;
+  }
   const callbacks = listeners.get(fileId);
   if (callbacks) {
     callbacks.forEach((callback) => callback(success, deferred));
@@ -115,6 +158,10 @@ export const generateThumbnailUsingWorker = action(
         }
         return;
       }
+
+      thumbnailDiagnostics.requested++;
+      thumbnailDiagnostics.inFlight++;
+      requestStartedAt.set(msg.fileId, Date.now());
 
       listeners.set(msg.fileId, [
         (success, deferred) =>
