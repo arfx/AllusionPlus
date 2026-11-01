@@ -19,6 +19,7 @@ export interface IThumbnailMessage {
 export interface IThumbnailMessageResponse {
   fileId: ID;
   thumbnailPath: string;
+  success?: boolean;
 }
 
 // TODO: Look into NativeImage operators: https://www.electronjs.org/docs/api/native-image#imageresizeoptions
@@ -137,7 +138,7 @@ export const useWorkerListener = () => {
   useEffect(() => {
     for (let i = 0; i < workers.length; i++) {
       workers[i].onmessage = (e: { data: IThumbnailMessageResponse }) => {
-        finishRequest(e.data.fileId, true);
+        finishRequest(e.data.fileId, e.data.success !== false);
       };
 
       workers[i].onerror = (err) => {
