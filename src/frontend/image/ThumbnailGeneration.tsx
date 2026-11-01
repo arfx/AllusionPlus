@@ -14,12 +14,14 @@ export interface IThumbnailMessage {
   thumbnailFilePath: string;
   thumbnailFormat: string;
   imageBitmap?: ImageBitmap;
+  requestToken: number;
 }
 
 export interface IThumbnailMessageResponse {
   fileId: ID;
   thumbnailPath: string;
   success?: boolean;
+  requestToken: number;
 }
 
 // TODO: Look into NativeImage operators: https://www.electronjs.org/docs/api/native-image#imageresizeoptions
@@ -34,16 +36,21 @@ for (let i = 0; i < NUM_THUMBNAIL_WORKERS; i++) {
 }
 
 let lastSubmittedWorker = 0;
+let nextRequestToken = 1;
 
 type Callback = (success: boolean) => void;
 /** Callbacks waiting for a thumbnail request to finish. */
 const listeners = new Map<ID, Callback[]>();
 /** The worker currently responsible for each request (including queued requests). */
-const workerByFileId = new Map<ID, number>();
+const workerByFileId = new Map<ID, { workerIndex: number; requestToken: number }>();
 /** One timeout per request, shared by all callers waiting for the same file. */
 const timeoutByFileId = new Map<ID, number>();
 
-const finishRequest = (fileId: ID, success: boolean) => {
+const finishRequest = (fileId: ID, success: boolean, requestToken?: number) => {
+  const currentRequest = workerByFileId.get(fileId);
+  if (requestToken !== undefined && currentRequest?.requestToken !== requestToken) {
+    return; // Ignore late responses from a request that already timed out.
+  }
   const timeout = timeoutByFileId.get(fileId);
   if (timeout !== undefined) {
     window.clearTimeout(timeout);
@@ -69,6 +76,7 @@ export const generateThumbnailUsingWorker = action(
       thumbnailFilePath,
       thumbnailFormat,
       fileId: file.id,
+      requestToken: nextRequestToken++,
     };
 
     return new Promise<void>((resolve, reject) => {
@@ -83,7 +91,7 @@ export const generateThumbnailUsingWorker = action(
 
       const workerIndex = lastSubmittedWorker;
       lastSubmittedWorker = (lastSubmittedWorker + 1) % workers.length;
-      workerByFileId.set(msg.fileId, workerIndex);
+      workerByFileId.set(msg.fileId, { workerIndex, requestToken: msg.requestToken });
 
       const timeoutId = window.setTimeout(() => {
         if (!listeners.has(msg.fileId)) {
@@ -91,8 +99,14 @@ export const generateThumbnailUsingWorker = action(
         }
         // Cancel on the worker that actually owns this request, not whichever
         // worker happened to receive the most recent request.
-        workers[workerIndex].postMessage({ type: 'cancel', fileId: msg.fileId });
-        timeoutReject ? finishRequest(msg.fileId, false) : finishRequest(msg.fileId, true);
+        workers[workerIndex].postMessage({
+          type: 'cancel',
+          fileId: msg.fileId,
+          requestToken: msg.requestToken,
+        });
+        timeoutReject
+          ? finishRequest(msg.fileId, false, msg.requestToken)
+          : finishRequest(msg.fileId, true, msg.requestToken);
         //console.debug(`timeout: unable to generate thumbnail for ${file.name}, retrying: ${!timeoutReject}`);
       }, timeout);
       timeoutByFileId.set(msg.fileId, timeoutId);
@@ -138,7 +152,7 @@ export const useWorkerListener = () => {
   useEffect(() => {
     for (let i = 0; i < workers.length; i++) {
       workers[i].onmessage = (e: { data: IThumbnailMessageResponse }) => {
-        finishRequest(e.data.fileId, e.data.success !== false);
+        finishRequest(e.data.fileId, e.data.success !== false, e.data.requestToken);
       };
 
       workers[i].onerror = (err) => {
@@ -147,7 +161,7 @@ export const useWorkerListener = () => {
         // Fail every request assigned to this worker so none remain stuck.
         for (const [fileId, workerIndex] of workerByFileId) {
           if (workerIndex === i) {
-            finishRequest(fileId, false);
+            finishRequest(fileId, false, workerByFileId.get(fileId)?.requestToken);
           }
         }
       };
