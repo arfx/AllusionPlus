@@ -23,6 +23,7 @@ interface ItemProps {
   forceNoThumbnail?: boolean;
   hovered?: boolean;
   galleryVideoPlaybackMode?: GalleryVideoPlaybackMode;
+  thumbnailPriority?: number;
 }
 
 interface MasonryItemProps extends ItemProps {
@@ -144,7 +145,14 @@ export const MasonryCell = observer(
 // TODO: When a filename contains https://x/y/z.abc?323 etc., it can't be found
 // e.g. %2F should be %252F on filesystems. Something to do with decodeURI, but seems like only on the filename - not the whole path
 export const Thumbnail = observer(
-  ({ file, mounted, forceNoThumbnail, hovered, galleryVideoPlaybackMode, thumbnailPriority = 0 }: ItemProps & { thumbnailPriority?: number }) => {
+  ({
+    file,
+    mounted,
+    forceNoThumbnail,
+    hovered,
+    galleryVideoPlaybackMode,
+    thumbnailPriority = 0,
+  }: ItemProps) => {
     const { uiStore, imageLoader } = useStore();
     const { thumbnailPath, isBroken } = file;
     const [isPlaying, setIsPlaying] = useState<boolean | undefined>(undefined);
