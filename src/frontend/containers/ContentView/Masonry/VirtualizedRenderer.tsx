@@ -127,16 +127,24 @@ const VirtualizedRenderer = observer(
         return;
       }
       const { scrollTop, scrollHeight, clientHeight } = elem;
-      const needsLoadNext = scrollTop + clientHeight >= scrollHeight - SCROLL_PAGE_THRESHOLD;
-      const needsLoadPrev = scrollTop <= SCROLL_PAGE_THRESHOLD;
-      if (needsLoadNext && loadingPage.current !== 'after') {
-        //console.count('NEEDS NEXT PAGE');
+      const prefetchDistance = Math.max(
+        MIN_SCROLL_PAGE_PREFETCH,
+        clientHeight * SCROLL_PAGE_PREFETCH_VIEWPORTS,
+      );
+      const needsLoadNext = scrollTop + clientHeight >= scrollHeight - prefetchDistance;
+      const needsLoadPrev = scrollTop <= prefetchDistance;
+
+      // Only start one pagination request at a time. On short pages both edges
+      // can be inside the prefetch range, so prefer the edge the user is closest to.
+      if (loadingPage.current !== null) {
+        return;
+      }
+      const distanceToNext = scrollHeight - (scrollTop + clientHeight);
+      const distanceToPrev = scrollTop;
+      if (needsLoadNext && (!needsLoadPrev || distanceToNext <= distanceToPrev)) {
         loadingPage.current = 'after';
         fileStore.fetchAfter();
-      }
-
-      if (needsLoadPrev && loadingPage.current !== 'before') {
-        //console.count('NEEDS PREV PAGE');
+      } else if (needsLoadPrev) {
         loadingPage.current = 'before';
         fileStore.fetchBefore();
       }
