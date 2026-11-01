@@ -28,6 +28,7 @@ interface ItemProps {
 interface MasonryItemProps extends ItemProps {
   forceNoThumbnail: boolean;
   transform: ITransform;
+  thumbnailPriority: number;
 }
 
 export const MasonryCell = observer(
@@ -36,6 +37,7 @@ export const MasonryCell = observer(
     mounted,
     forceNoThumbnail,
     transform: [width, height, top, left],
+    thumbnailPriority,
   }: MasonryItemProps) => {
     const { uiStore, fileStore } = useStore();
     const [isHovered, setIsHovered] = useState(false);
@@ -84,6 +86,7 @@ export const MasonryCell = observer(
           <Thumbnail
             mounted={mounted}
             file={file}
+            thumbnailPriority={thumbnailPriority}
             forceNoThumbnail={forceNoThumbnail}
             hovered={isHovered}
             galleryVideoPlaybackMode={uiStore.galleryVideoPlaybackMode}
@@ -178,7 +181,7 @@ export const Thumbnail = observer(
           }
 
           // No cached thumbnail exists yet, so wait for its first generation.
-          await imageLoader.ensureThumbnail(file, thumbnailPriority);
+          await imageLoader.ensureThumbnail(file, priority);
           return getThumbnail(file);
         } else {
           const src = await imageLoader.getImageSrc(file);
