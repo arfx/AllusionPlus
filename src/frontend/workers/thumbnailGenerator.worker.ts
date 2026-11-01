@@ -122,6 +122,15 @@ const reportDroppedRequest = (dropped: IThumbnailMessage) => {
   console.debug(`Queue full (${MAX_QUEUE_LENGTH}). Dropped request for ${dropped.filePath}.`);
 };
 
+const insertIntoQueue = (data: IThumbnailMessage) => {
+  const priority = data.priority ?? 0;
+  let insertAt = queue.findIndex((item) => (item.priority ?? 0) < priority);
+  if (insertAt === -1) {
+    insertAt = queue.length;
+  }
+  queue.splice(insertAt, 0, data);
+};
+
 const addToQueue = (data: IThumbnailMessage) => {
   if (queue.length >= MAX_QUEUE_LENGTH) {
     // Keep higher-priority visible thumbnails and discard the least important
@@ -139,13 +148,7 @@ const addToQueue = (data: IThumbnailMessage) => {
     reportDroppedRequest(queue.splice(lowestIndex, 1)[0]);
   }
 
-  // Insert after existing requests with equal or higher priority (stable ordering).
-  const priority = data.priority ?? 0;
-  let insertAt = queue.findIndex((item) => (item.priority ?? 0) < priority);
-  if (insertAt === -1) {
-    insertAt = queue.length;
-  }
-  queue.splice(insertAt, 0, data);
+  insertIntoQueue(data);
 };
 
 async function processMessage(data: IThumbnailMessage) {
@@ -183,6 +186,20 @@ async function processMessage(data: IThumbnailMessage) {
 
 // Respond to message from parent thread
 ctx.addEventListener('message', async (event) => {
+  // Promote a queued request when its cell moves into the visible viewport.
+  if (event.data.type === 'reprioritize') {
+    const index = queue.findIndex(
+      (item) =>
+        item.fileId === event.data.fileId && item.requestToken === event.data.requestToken,
+    );
+    if (index !== -1) {
+      const [item] = queue.splice(index, 1);
+      item.priority = Math.max(item.priority ?? 0, event.data.priority ?? 0);
+      insertIntoQueue(item);
+    }
+    return;
+  }
+
   // Remove the image from the queue when timeout occurs
   if (event.data.type === 'cancel') {
     const index = queue.findIndex(
