@@ -247,7 +247,10 @@ export const Thumbnail = observer(
 
     // Plays and pauses media
     useEffect(() => {
-      if (!(file.extension === 'gif' || isFileExtensionVideo(file.extension))) {
+      if (
+        galleryVideoPlaybackMode !== 'hover' ||
+        !(file.extension === 'gif' || isFileExtensionVideo(file.extension))
+      ) {
         return;
       }
       // Do not decode/play animated media while the user is actively scrolling.
@@ -258,7 +261,7 @@ export const Thumbnail = observer(
         setIsPlaying(false);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [file.extension, hovered, isScrolling]);
+    }, [file.extension, galleryVideoPlaybackMode, hovered, isScrolling]);
     useEffect(() => {
       if (!(file.extension === 'gif' || isFileExtensionVideo(file.extension))) {
         return;
