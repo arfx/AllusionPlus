@@ -113,8 +113,17 @@ let curParallelThumbnails = 0;
 
 const addToQueue = (data: IThumbnailMessage) => {
   if (queue.length >= MAX_QUEUE_LENGTH) {
-    queue.shift();
-    console.debug(`Queue full (${MAX_QUEUE_LENGTH}). Removed oldest request.`);
+    const dropped = queue.shift();
+    if (dropped) {
+      // Notify the caller immediately. Otherwise its promise remains pending
+      // until the main-thread timeout and the UI appears stuck.
+      ctx.postMessage({
+        fileId: dropped.fileId,
+        thumbnailPath: dropped.filePath,
+        success: false,
+      } satisfies IThumbnailMessageResponse);
+      console.debug(`Queue full (${MAX_QUEUE_LENGTH}). Dropped request for ${dropped.filePath}.`);
+    }
   }
 
   queue.push(data);
@@ -134,6 +143,7 @@ async function processMessage(data: IThumbnailMessage) {
       const response: IThumbnailMessageResponse = {
         fileId,
         thumbnailPath: thumbnailPath || filePath,
+        success: Boolean(thumbnailPath),
       };
       ctx.postMessage(response);
       curParallelThumbnails--;
