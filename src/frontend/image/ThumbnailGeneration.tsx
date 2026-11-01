@@ -92,6 +92,17 @@ export const generateThumbnailUsingWorker = action(
       const existingListeners = listeners.get(file.id);
       if (existingListeners) {
         existingListeners.push((success) => (success ? resolve() : reject()));
+        // A cell may have moved from overscan into the visible viewport while
+        // its request is still queued. Promote that existing request in-place.
+        const currentRequest = workerByFileId.get(file.id);
+        if (currentRequest) {
+          workers[currentRequest.workerIndex].postMessage({
+            type: 'reprioritize',
+            fileId: file.id,
+            requestToken: currentRequest.requestToken,
+            priority,
+          });
+        }
         return;
       }
 
