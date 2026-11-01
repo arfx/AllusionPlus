@@ -78,6 +78,7 @@ export const generateThumbnailUsingWorker = action(
       thumbnailFormat,
       fileId: file.id,
       requestToken: nextRequestToken++,
+      priority,
     };
 
     return new Promise<void>((resolve, reject) => {
