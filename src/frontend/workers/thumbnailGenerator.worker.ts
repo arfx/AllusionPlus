@@ -111,23 +111,41 @@ const MAX_PARALLEL_THUMBNAILS = 4; // Related to amount of workers. Currently 4 
 const MAX_QUEUE_LENGTH = 8;
 let curParallelThumbnails = 0;
 
+const reportDroppedRequest = (dropped: IThumbnailMessage) => {
+  // Resolve the main-thread promise immediately rather than waiting for timeout.
+  ctx.postMessage({
+    fileId: dropped.fileId,
+    thumbnailPath: dropped.filePath,
+    success: false,
+    requestToken: dropped.requestToken,
+  } satisfies IThumbnailMessageResponse);
+  console.debug(`Queue full (${MAX_QUEUE_LENGTH}). Dropped request for ${dropped.filePath}.`);
+};
+
 const addToQueue = (data: IThumbnailMessage) => {
   if (queue.length >= MAX_QUEUE_LENGTH) {
-    const dropped = queue.shift();
-    if (dropped) {
-      // Notify the caller immediately. Otherwise its promise remains pending
-      // until the main-thread timeout and the UI appears stuck.
-      ctx.postMessage({
-        fileId: dropped.fileId,
-        thumbnailPath: dropped.filePath,
-        success: false,
-        requestToken: dropped.requestToken,
-      } satisfies IThumbnailMessageResponse);
-      console.debug(`Queue full (${MAX_QUEUE_LENGTH}). Dropped request for ${dropped.filePath}.`);
+    // Keep higher-priority visible thumbnails and discard the least important
+    // queued request. Equal priorities retain FIFO ordering.
+    let lowestIndex = 0;
+    for (let i = 1; i < queue.length; i++) {
+      if ((queue[i].priority ?? 0) < (queue[lowestIndex].priority ?? 0)) {
+        lowestIndex = i;
+      }
     }
+    if ((data.priority ?? 0) <= (queue[lowestIndex].priority ?? 0)) {
+      reportDroppedRequest(data);
+      return;
+    }
+    reportDroppedRequest(queue.splice(lowestIndex, 1)[0]);
   }
 
-  queue.push(data);
+  // Insert after existing requests with equal or higher priority (stable ordering).
+  const priority = data.priority ?? 0;
+  let insertAt = queue.findIndex((item) => (item.priority ?? 0) < priority);
+  if (insertAt === -1) {
+    insertAt = queue.length;
+  }
+  queue.splice(insertAt, 0, data);
 };
 
 async function processMessage(data: IThumbnailMessage) {
