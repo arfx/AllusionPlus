@@ -117,6 +117,7 @@ const reportDroppedRequest = (dropped: IThumbnailMessage) => {
     fileId: dropped.fileId,
     thumbnailPath: dropped.filePath,
     success: false,
+    deferred: true,
     requestToken: dropped.requestToken,
   } satisfies IThumbnailMessageResponse);
   console.debug(`Queue full (${MAX_QUEUE_LENGTH}). Dropped request for ${dropped.filePath}.`);
