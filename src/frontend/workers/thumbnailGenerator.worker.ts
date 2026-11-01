@@ -111,7 +111,14 @@ const MAX_PARALLEL_THUMBNAILS = 4; // Related to amount of workers. Currently 4 
 const MAX_QUEUE_LENGTH = 8;
 let curParallelThumbnails = 0;
 
+const releaseImageBitmap = (data: IThumbnailMessage) => {
+  // Video frames are transferred to the worker before queue admission. If a queued
+  // request is discarded or cancelled, no generation path will close its bitmap.
+  data.imageBitmap?.close();
+};
+
 const reportDroppedRequest = (dropped: IThumbnailMessage) => {
+  releaseImageBitmap(dropped);
   // Resolve the main-thread promise immediately rather than waiting for timeout.
   ctx.postMessage({
     fileId: dropped.fileId,
@@ -162,7 +169,8 @@ const addToQueue = (data: IThumbnailMessage) => {
       return;
     }
 
-    reportDroppedRequest(queue.splice(lowestIndex, 1)[0]);
+    const evicted = queue.splice(lowestIndex, 1)[0];
+    reportDroppedRequest(evicted);
   }
 
   insertIntoQueue(data);
@@ -224,7 +232,8 @@ ctx.addEventListener('message', async (event) => {
         item.fileId === event.data.fileId && item.requestToken === event.data.requestToken,
     );
     if (index !== -1) {
-      queue.splice(index, 1);
+      const [cancelled] = queue.splice(index, 1);
+      releaseImageBitmap(cancelled);
       console.debug(`Cancelled request for fileId: ${event.data.fileId}`);
     }
     return;
