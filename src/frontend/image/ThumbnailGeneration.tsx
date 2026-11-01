@@ -15,6 +15,7 @@ export interface IThumbnailMessage {
   thumbnailFormat: string;
   imageBitmap?: ImageBitmap;
   requestToken: number;
+  priority?: number;
 }
 
 export interface IThumbnailMessageResponse {
