@@ -922,9 +922,9 @@ class FileStore {
     if (this.showsMissingContent || this.orderBy === 'tagGroup') {
       return false;
     }
-    const { uiStore } = this.rootStore;
-    const criterias = uiStore.searchRootGroup.toCondition(this.rootStore);
     try {
+      const { uiStore } = this.rootStore;
+      const criterias = uiStore.searchRootGroup.toCondition(this.rootStore);
       // Indicate a new fetch process
       const start = await this.newFetchTaskId();
       const fetchedFiles = await this.backend.searchFiles(
@@ -937,8 +937,12 @@ class FileStore {
       const currentFetchId = runInAction(() => this.fetchTaskIdPair[0]);
       if (start === currentFetchId) {
         // No "top/end of results reached" notifications — they were distracting.
+        const previousLength = this.fileList.length;
         await this.updateFromBackend(fetchedFiles, direction);
-        return true;
+        // An empty page (or a page that could not be converted) does not trigger
+        // a layout change. Report it as unsuccessful so the renderer releases
+        // its pagination lock and does not wait for a layout effect that never runs.
+        return this.fileList.length > previousLength;
       } else {
         console.debug(`FETCH "${direction}" ABORTED`);
         return false;
