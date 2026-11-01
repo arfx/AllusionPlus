@@ -154,7 +154,7 @@ export const Advanced = observer(() => {
         <Button
           onClick={refreshCacheStats}
           styling="outlined"
-          icon={IconSet.REFRESH}
+          icon={IconSet.RELOAD}
           text={isScanningCache ? 'Scanning...' : 'Refresh Cache Stats'}
           disabled={isScanningCache}
         />
