@@ -195,7 +195,7 @@ export const useWorkerListener = () => {
         );
       };
 
-      worker.onerror = (err) => {
+      const handleWorkerFailure = (err: Event) => {
         console.error('Could not generate thumbnail', `worker ${workerIndex}`, err);
         // Worker errors do not consistently expose the originating file id.
         // Fail every request assigned to this worker so none remain stuck.
@@ -215,6 +215,9 @@ export const useWorkerListener = () => {
           attachListeners(workerIndex);
         }
       };
+      worker.onerror = handleWorkerFailure;
+      // Structured-clone failures can occur without firing the runtime error handler.
+      worker.onmessageerror = handleWorkerFailure;
     };
 
     for (let i = 0; i < workers.length; i++) {
