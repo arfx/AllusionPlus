@@ -121,6 +121,7 @@ const addToQueue = (data: IThumbnailMessage) => {
         fileId: dropped.fileId,
         thumbnailPath: dropped.filePath,
         success: false,
+        requestToken: dropped.requestToken,
       } satisfies IThumbnailMessageResponse);
       console.debug(`Queue full (${MAX_QUEUE_LENGTH}). Dropped request for ${dropped.filePath}.`);
     }
@@ -144,6 +145,7 @@ async function processMessage(data: IThumbnailMessage) {
         fileId,
         thumbnailPath: thumbnailPath || filePath,
         success: Boolean(thumbnailPath),
+        requestToken: data.requestToken,
       };
       ctx.postMessage(response);
       curParallelThumbnails--;
@@ -154,7 +156,7 @@ async function processMessage(data: IThumbnailMessage) {
     curParallelThumbnails--;
     console.error('Could not generate image thumbnail', data.filePath, err);
     // If an error occurs, just load the real file
-    ctx.postMessage({ fileId, thumbnailPath: filePath, success: false });
+    ctx.postMessage({ fileId, thumbnailPath: filePath, success: false, requestToken: data.requestToken });
   }
   if (curParallelThumbnails < MAX_PARALLEL_THUMBNAILS && queue.length > 0) {
     processMessage(queue.shift()!); // "pop" from the queue. First elements are at the start, so shift em
@@ -165,7 +167,10 @@ async function processMessage(data: IThumbnailMessage) {
 ctx.addEventListener('message', async (event) => {
   // Remove the image from the queue when timeout occurs
   if (event.data.type === 'cancel') {
-    const index = queue.findIndex((item) => item.fileId === event.data.fileId);
+    const index = queue.findIndex(
+      (item) =>
+        item.fileId === event.data.fileId && item.requestToken === event.data.requestToken,
+    );
     if (index !== -1) {
       queue.splice(index, 1);
       console.debug(`Cancelled request for fileId: ${event.data.fileId}`);
