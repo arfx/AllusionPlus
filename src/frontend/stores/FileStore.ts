@@ -916,11 +916,11 @@ class FileStore {
     return now;
   }
 
-  @action.bound async fetchPage(direction: PaginationDirection): Promise<void> {
+  @action.bound async fetchPage(direction: PaginationDirection): Promise<boolean> {
     // Tag grouping loads the whole result set up front and sorts client-side,
     // so there is no incremental pagination in that mode.
     if (this.showsMissingContent || this.orderBy === 'tagGroup') {
-      return;
+      return false;
     }
     const { uiStore } = this.rootStore;
     const criterias = uiStore.searchRootGroup.toCondition(this.rootStore);
@@ -937,20 +937,23 @@ class FileStore {
       const currentFetchId = runInAction(() => this.fetchTaskIdPair[0]);
       if (start === currentFetchId) {
         // No "top/end of results reached" notifications — they were distracting.
-        return this.updateFromBackend(fetchedFiles, direction);
+        await this.updateFromBackend(fetchedFiles, direction);
+        return true;
       } else {
         console.debug(`FETCH "${direction}" ABORTED`);
+        return false;
       }
     } catch (e) {
       console.log(`Could not fetch ${direction} page.`, e);
+      return false;
     }
   }
 
-  @action.bound async fetchAfter(): Promise<void> {
+  @action.bound async fetchAfter(): Promise<boolean> {
     return this.fetchPage('after');
   }
 
-  @action.bound async fetchBefore(): Promise<void> {
+  @action.bound async fetchBefore(): Promise<boolean> {
     return this.fetchPage('before');
   }
 
