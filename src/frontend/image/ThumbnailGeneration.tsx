@@ -184,7 +184,12 @@ export const useWorkerListener = () => {
   useEffect(() => {
     for (let i = 0; i < workers.length; i++) {
       workers[i].onmessage = (e: { data: IThumbnailMessageResponse }) => {
-        finishRequest(e.data.fileId, e.data.success !== false, e.data.requestToken);
+        finishRequest(
+          e.data.fileId,
+          e.data.success !== false,
+          e.data.requestToken,
+          e.data.deferred === true,
+        );
       };
 
       workers[i].onerror = (err) => {
