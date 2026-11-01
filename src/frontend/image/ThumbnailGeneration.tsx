@@ -71,7 +71,7 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number) => {
  * causing the image to update in the view where ever it is used
  **/
 export const generateThumbnailUsingWorker = action(
-  async (file: ClientFile, thumbnailFilePath: string, timeoutReject = true, timeout = 10000) => {
+  async (\n    file: ClientFile,\n    thumbnailFilePath: string,\n    timeoutReject = true,\n    timeout = 10000,\n    priority = 0,\n  ) => {
     const msg: IThumbnailMessage = {
       filePath: file.absolutePath,
       thumbnailFilePath,
