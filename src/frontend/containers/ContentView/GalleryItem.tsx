@@ -141,7 +141,7 @@ export const MasonryCell = observer(
 // TODO: When a filename contains https://x/y/z.abc?323 etc., it can't be found
 // e.g. %2F should be %252F on filesystems. Something to do with decodeURI, but seems like only on the filename - not the whole path
 export const Thumbnail = observer(
-  ({ file, mounted, forceNoThumbnail, hovered, galleryVideoPlaybackMode }: ItemProps) => {
+  ({ file, mounted, forceNoThumbnail, hovered, galleryVideoPlaybackMode, thumbnailPriority = 0 }: ItemProps & { thumbnailPriority?: number }) => {
     const { uiStore, imageLoader } = useStore();
     const { thumbnailPath, isBroken } = file;
     const [isPlaying, setIsPlaying] = useState<boolean | undefined>(undefined);
@@ -154,7 +154,7 @@ export const Thumbnail = observer(
       mounted,
       thumbnailPath, // dependency to re-execute
       uiStore.isList || (!forceNoThumbnail && !isPlaying),
-      async (file, isBroken, mounted, thumbnailPath, useThumbnail) => {
+      async (file, isBroken, mounted, thumbnailPath, useThumbnail, priority) => {
         // If it is broken, only show thumbnail if it exists.
         if (!mounted || isBroken === true) {
           // fse.pathExists doesn't work if the path have url parameters
@@ -171,14 +171,14 @@ export const Thumbnail = observer(
           // Display an existing thumbnail immediately. Check freshness and refresh it
           // in the background so the gallery does not wait for filesystem stats or decoding.
           if (await fse.pathExists(cachedThumbnailPath)) {
-            void imageLoader.ensureThumbnail(file).catch((error) => {
+            void imageLoader.ensureThumbnail(file, priority).catch((error) => {
               console.error('Could not refresh thumbnail in the background:', file.absolutePath, error);
             });
             return thumbnailPath;
           }
 
           // No cached thumbnail exists yet, so wait for its first generation.
-          await imageLoader.ensureThumbnail(file);
+          await imageLoader.ensureThumbnail(file, thumbnailPriority);
           return getThumbnail(file);
         } else {
           const src = await imageLoader.getImageSrc(file);
