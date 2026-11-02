@@ -9,7 +9,11 @@ import { generateId, ID } from '../../api/id';
 import { SearchCriteria } from '../../api/search-criteria';
 import { RendererMessenger } from '../../ipc/renderer';
 import { ClientFile } from '../entities/File';
-import { ClientFileSearchCriteria, ClientTagSearchCriteria } from '../entities/SearchCriteria';
+import {
+  ClientFileSearchCriteria,
+  ClientStringSearchCriteria,
+  ClientTagSearchCriteria,
+} from '../entities/SearchCriteria';
 import { ClientTag } from '../entities/Tag';
 import { comboMatches, getKeyCombo, parseKeyCombo } from '../hotkeyParser';
 import RootStore from './RootStore';
@@ -2012,6 +2016,7 @@ class UiStore {
     const fileStore = this.rootStore.fileStore;
     const isLocationSearch = this.searchRootGroup.children.some(
       (criterion) =>
+        criterion instanceof ClientStringSearchCriteria &&
         criterion.key === 'absolutePath' &&
         criterion.operator.toLowerCase().includes('startswith'),
     );
