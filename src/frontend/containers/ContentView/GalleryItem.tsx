@@ -324,14 +324,14 @@ export const Thumbnail = observer(
             <img
               ref={thumbnailRef}
               src={encodeFilePath(file.thumbnailPath)}
-              style={{ ...props.style, display: loading ? 'none' : 'block' }}
+              style={{ ...props.style, display: 'block' }}
             />
           </>
         ) : (
           <img
             ref={thumbnailRef}
             {...props}
-            style={{ ...props.style, display: loading ? 'none' : 'block' }}
+            style={{ ...props.style, display: 'block' }}
           />
         )}
         {loading && <span className="image-loading" />}

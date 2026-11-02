@@ -200,6 +200,8 @@
 }
 
 .image-loading {
+  position: absolute;
+  z-index: 1;
   width: 2rem;
   aspect-ratio: 1 / 1;
   margin: auto;
