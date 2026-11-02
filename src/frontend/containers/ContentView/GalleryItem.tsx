@@ -216,22 +216,15 @@ export const Thumbnail = observer(
     const videoRef = useRef<HTMLVideoElement>(null);
     const thumbnailRef = useRef<HTMLImageElement>(null);
     const [loadError, setLoadError] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+    const [loadedFileId, setLoadedFileId] = useState<string | null>(null);
     const [src, setSrc] = useState(thumbnailPath);
     const handleImageError = useCallback(() => {
       if (fileIdRef.current === fileId) {
         setLoadError(true);
       }
     }, [fileId]);
-    const handleLoad = useCallback(() => {
-      if (fileIdRef.current === fileId) {
-        setLoading(false);
-        if (videoRef.current) {
-          videoRef.current.style.setProperty('display', 'block');
-          thumbnailRef.current?.style.setProperty('display', 'none');
-        }
-      }
-    }, [fileId]);
+
     useEffect(() => {
       fileIdRef.current = fileId;
       setLoadError(false);
@@ -280,8 +273,28 @@ export const Thumbnail = observer(
     const is_pixelated = is_lowres && uiStore.upscaleMode === 'pixelated';
     const autoPlay = (galleryVideoPlaybackMode === 'auto' || hovered) ?? false;
 
-    // Keep the low-resolution preview visible until it has loaded, then swap to the full thumbnail.
-    const displaySrc = loading && file.previewThumbnailPath ? file.previewThumbnailPath : src;
+    // Track the loaded source, not a generic loading flag. Gallery cells can be
+    // reused for another file, and a preview/full-thumbnail swap is a new image load.
+    // Once the full thumbnail is loaded, ignore a late preview notification.
+    const fullThumbnailLoaded = loadedFileId === fileId && loadedSrc === src;
+    const displaySrc =
+      file.previewThumbnailPath &&
+      !fullThumbnailLoaded &&
+      loadedSrc !== file.previewThumbnailPath
+        ? file.previewThumbnailPath
+        : src;
+    const loading = loadedFileId !== fileId || loadedSrc !== displaySrc;
+
+    const handleLoad = useCallback(() => {
+      if (fileIdRef.current === fileId) {
+        setLoadedSrc(displaySrc);
+        setLoadedFileId(fileId);
+        if (videoRef.current) {
+          videoRef.current.style.setProperty('display', 'block');
+          thumbnailRef.current?.style.setProperty('display', 'none');
+        }
+      }
+    }, [displaySrc, fileId]);
 
     const props = useMemo(() => {
       const props = {
