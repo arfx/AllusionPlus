@@ -497,7 +497,9 @@ const FolderBookmarks = observer(() => {
               title="Remove bookmark"
               onClick={(event) => {
                 event.stopPropagation();
-                saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id));
+                if (window.confirm(`Remove folder bookmark "${bookmark.name}"?`)) {
+                  saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id));
+                }
               }}
             >
               {IconSet.DELETE}
