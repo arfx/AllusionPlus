@@ -226,7 +226,11 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         ? directory.entries
         : await readDirectory(entry.path);
       const hasSubfolders = entries.some((item) => item.isDirectory);
-      if (hasSubfolders || directories[entry.path]?.error) {
+      setDirectories((previous) => ({
+        ...previous,
+        [entry.path]: { entries, loading: false, hasSubfolders },
+      }));
+      if (hasSubfolders) {
         setExpandedPaths((previous) => new Set(previous).add(entry.path));
       } else {
         setExpandedPaths((previous) => {
