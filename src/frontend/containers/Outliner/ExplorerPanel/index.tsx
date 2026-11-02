@@ -42,7 +42,7 @@ const FolderNode = ({
   const isExpanded = expandedPaths.has(entry.path);
   const directory = directories[entry.path];
   const children = directory?.entries.filter((item) => item.isDirectory) ?? [];
-  const canExpand = directory ? (!!directory.error || directory.hasSubfolders === true || children.length > 0) : true;
+  const canExpand = directory ? (!!directory.error || directory.loading || directory.hasSubfolders === true || children.length > 0) : true;
 
   return (
     <div className="explorer-folder-node">
