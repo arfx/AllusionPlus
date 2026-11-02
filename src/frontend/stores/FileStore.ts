@@ -1289,49 +1289,60 @@ class FileStore {
   @action.bound async setExplorerFiles(paths: string[]): Promise<void> {
     this.isExplorerMode = true;
     const taskId = await this.newFetchTaskId();
-    const files: ClientFile[] = [];
-    for (const absolutePath of paths) {
-      if (taskId !== this.fetchTaskIdPair[0]) return;
-      try {
-        const stats = await fse.stat(absolutePath);
-        if (!stats.isFile()) continue;
-        const fileStats = {
-          absolutePath,
-          dateCreated: stats.birthtime,
-          dateModified: stats.mtime,
-          size: Number(stats.size),
-          ino: stats.ino.toString(),
-        };
-        const metadata = await getMetaData(fileStats, this.rootStore.imageLoader);
-        const now = new Date();
-        const fileDTO: FileDTO = {
-          id: generateId(),
-          ino: fileStats.ino,
-          locationId: '',
-          relativePath: absolutePath,
-          absolutePath,
-          tags: [],
-          tagSorting: 'insertion',
-          extraProperties: {},
-          dateAdded: now,
-          dateModified: now,
-          dateModifiedOS: stats.mtime,
-          dateLastIndexed: now,
-          name: metadata.name,
-          extension: metadata.extension,
-          size: metadata.size,
-          width: metadata.width || 100,
-          height: metadata.height || 100,
-          dateCreated: metadata.dateCreated,
-        };
-        const file = new ClientFile(this, fileDTO, { absolutePath, autoSave: false });
-        const thumbnailPath = getThumbnailPath(absolutePath, this.rootStore.uiStore.thumbnailDirectory);
-        file.setThumbnailPath(thumbnailPath);
-        files.push(file);
-      } catch (error) {
-        console.warn('Could not prepare Explorer file for gallery', absolutePath, error);
-      }
-    }
+    const preparedFiles = await promiseAllLimit(
+      paths.map(
+        (absolutePath) => async (): Promise<ClientFile | undefined> => {
+          if (taskId !== this.fetchTaskIdPair[0]) return undefined;
+          try {
+            const stats = await fse.stat(absolutePath);
+            if (!stats.isFile()) return undefined;
+            const fileStats = {
+              absolutePath,
+              dateCreated: stats.birthtime,
+              dateModified: stats.mtime,
+              size: Number(stats.size),
+              ino: stats.ino.toString(),
+            };
+            const metadata = await getMetaData(fileStats, this.rootStore.imageLoader);
+            const now = new Date();
+            const fileDTO: FileDTO = {
+              id: generateId(),
+              ino: fileStats.ino,
+              locationId: '',
+              relativePath: absolutePath,
+              absolutePath,
+              tags: [],
+              tagSorting: 'insertion',
+              extraProperties: {},
+              dateAdded: now,
+              dateModified: now,
+              dateModifiedOS: stats.mtime,
+              dateLastIndexed: now,
+              name: metadata.name,
+              extension: metadata.extension,
+              size: metadata.size,
+              width: metadata.width || 100,
+              height: metadata.height || 100,
+              dateCreated: metadata.dateCreated,
+            };
+            const file = new ClientFile(this, fileDTO, { absolutePath, autoSave: false });
+            const thumbnailPath = getThumbnailPath(
+              absolutePath,
+              this.rootStore.uiStore.thumbnailDirectory,
+            );
+            file.setThumbnailPath(thumbnailPath);
+            return file;
+          } catch (error) {
+            console.warn('Could not prepare Explorer file for gallery', absolutePath, error);
+            return undefined;
+          }
+        },
+      ),
+      4,
+      undefined,
+      () => taskId !== this.fetchTaskIdPair[0],
+    ).catch(() => []);
+    const files = preparedFiles.filter((file): file is ClientFile => file !== undefined);
     if (taskId !== this.fetchTaskIdPair[0]) {
       files.forEach((file) => file.dispose());
       return;
