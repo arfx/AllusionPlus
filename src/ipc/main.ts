@@ -7,6 +7,8 @@ import {
   DRAG_EXPORT,
   FULL_SCREEN_CHANGED,
   GET_PATH,
+  EXPLORER_READ_DIRECTORY,
+  ExplorerDirectoryEntry,
   GET_TAGS,
   GET_VERSION,
   GET_ZOOM_FACTOR,
@@ -92,6 +94,10 @@ export class MainMessenger {
 
   static onGetPath = (cb: (name: SYSTEM_PATHS) => string) =>
     ipcMain.handle(GET_PATH, (_, name) => cb(name));
+
+  static onExplorerReadDirectory = (
+    cb: (absolutePath: string) => Promise<ExplorerDirectoryEntry[]>,
+  ) => ipcMain.handle(EXPLORER_READ_DIRECTORY, (_, absolutePath: string) => cb(absolutePath));
 
   static onTrashFile = (cb: (absolutePath: string) => Promise<void>) =>
     ipcMain.handle(TRASH_FILE, async (_, absolutePath) => {
