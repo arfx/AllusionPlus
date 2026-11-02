@@ -501,9 +501,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
               className="explorer-load-more"
               onClick={() => setDisplayLimit((previous) => previous + 120)}
             >
-              Load more ({imageFiles.length + files.length - imageFiles.length - displayLimit > 0
-                ? imageFiles.length + files.length - imageFiles.length - displayLimit
-                : 0} remaining)
+              Load next 120 items
             </button>
           )}
         </section>
