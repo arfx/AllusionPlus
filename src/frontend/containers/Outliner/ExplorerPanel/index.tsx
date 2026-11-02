@@ -14,6 +14,7 @@ import './ExplorerPanel.scss';
 type DirectoryState = {
   entries: ExplorerDirectoryEntry[];
   loading: boolean;
+  hasSubfolders?: boolean;
   error?: string;
 };
 
@@ -41,7 +42,7 @@ const FolderNode = ({
   const isExpanded = expandedPaths.has(entry.path);
   const directory = directories[entry.path];
   const children = directory?.entries.filter((item) => item.isDirectory) ?? [];
-  const canExpand = directory ? (!!directory.error || children.length > 0) : true;
+  const canExpand = directory ? (!!directory.error || directory.hasSubfolders === true || children.length > 0) : true;
 
   return (
     <div className="explorer-folder-node">
@@ -133,19 +134,19 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const readDirectory = useCallback(async (absolutePath: string) => {
     setDirectories((previous) => ({
       ...previous,
-      [absolutePath]: { entries: previous[absolutePath]?.entries ?? [], loading: true },
+      [absolutePath]: { ...previous[absolutePath], entries: previous[absolutePath]?.entries ?? [], loading: true },
     }));
     try {
       const entries = await RendererMessenger.explorerReadDirectory(absolutePath);
       setDirectories((previous) => ({
         ...previous,
-        [absolutePath]: { entries, loading: false },
+        [absolutePath]: { entries, loading: false, hasSubfolders: entries.some((entry) => entry.isDirectory) },
       }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setDirectories((previous) => ({
         ...previous,
-        [absolutePath]: { entries: [], loading: false, error: message },
+        [absolutePath]: { entries: [], loading: false, hasSubfolders: false, error: message },
       }));
     }
   }, []);
@@ -193,7 +194,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const toggleFolder = useCallback(
     async (entry: ExplorerDirectoryEntry) => {
       const cachedDirectory = directories[entry.path];
-      if (cachedDirectory && !cachedDirectory.loading && !cachedDirectory.error && !cachedDirectory.entries.some((item) => item.isDirectory)) {
+      if (cachedDirectory && !cachedDirectory.loading && !cachedDirectory.error && cachedDirectory.hasSubfolders === false) {
         return;
       }
       if (expandedPaths.has(entry.path)) {
