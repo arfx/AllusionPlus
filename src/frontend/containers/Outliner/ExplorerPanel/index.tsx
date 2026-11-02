@@ -106,6 +106,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const [thumbnailPaths, setThumbnailPaths] = useState<Record<string, string>>({});
   const [thumbnailErrors, setThumbnailErrors] = useState<Record<string, string>>({});
   const [displayLimit, setDisplayLimit] = useState(120);
+  const [directoryResetVersion, setDirectoryResetVersion] = useState(0);
   const scanId = useRef(0);
 
   const readDirectory = useCallback(async (absolutePath: string) => {
@@ -136,6 +137,10 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       setCurrentDirectory(absolutePath);
       uiStore.setExplorerRootDirectory(absolutePath);
       setDirectories({});
+      setRecursiveFiles([]);
+      setScanError(undefined);
+      setDisplayLimit(120);
+      setDirectoryResetVersion((previous) => previous + 1);
       setExpandedPaths(new Set([absolutePath]));
       await readDirectory(absolutePath);
     },
@@ -290,7 +295,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     return () => {
       cancelled = true;
     };
-  }, [currentDirectory, includeSubfolders]);
+  }, [currentDirectory, directoryResetVersion, includeSubfolders]);
 
   const files = useMemo(
     () =>
