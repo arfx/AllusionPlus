@@ -14,8 +14,7 @@ import {
   PaginationDirection,
 } from '../../api/data-storage-search';
 import { FileDTO, IMG_EXTENSIONS_TYPE } from '../../api/file';
-import { generateId } from '../../api/id';
-import { ID } from '../../api/id';
+import { generateId, ID } from '../../api/id';
 import { AppToaster, IToastProps } from '../components/Toaster';
 import { ClientFile, getMetaData, mergeMovedFile } from '../entities/File';
 import { ClientLocation } from '../entities/Location';
