@@ -226,8 +226,8 @@ class UiStore {
   @observable isSlideMode: boolean = false;
   @observable isFullScreen: boolean = false;
   @observable outlinerWidth: number = UiStore.MIN_OUTLINER_WIDTH;
-  readonly outlinerExpansion = observable<boolean>([true, true, true, true]);
-  readonly outlinerHeights = observable<number>([200, 200, 200, 200]);
+  readonly outlinerExpansion = observable<boolean>([true, true, true, true, true]);
+  readonly outlinerHeights = observable<number>([200, 200, 200, 200, 200]);
   @observable slideInspectorWidth: number = UiStore.MIN_INSPECTOR_WIDTH;
   @observable overviewInspectorWidth: number = UiStore.MIN_INSPECTOR_WIDTH;
   /** Whether to show the tags on images in the content view */
@@ -1661,11 +1661,17 @@ class UiStore {
   }
 
   @action.bound setOutlinerExpansion(newVal: boolean[]): void {
-    this.outlinerExpansion.replace(newVal);
+    // Keep older saved preferences compatible when new Outliner panels are added.
+    this.outlinerExpansion.replace(
+      Array.from({ length: 5 }, (_, index) => newVal[index] ?? true),
+    );
   }
 
   @action.bound setOutlinerHeights(newVal: number[]): void {
-    this.outlinerHeights.replace(newVal);
+    // Keep older saved preferences compatible when new Outliner panels are added.
+    this.outlinerHeights.replace(
+      Array.from({ length: 5 }, (_, index) => newVal[index] ?? 200),
+    );
   }
 
   @action.bound replaceBulkAutoRemoveStrings(newVal: string[]): void {
