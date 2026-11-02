@@ -175,3 +175,18 @@
   opacity: 0.6;
   font-size: 0.8em;
 }
+
+.explorer-load-more {
+  display: block;
+  margin: 8px auto 16px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.3));
+  border-radius: 4px;
+  color: inherit;
+  background: var(--button-background, transparent);
+  cursor: pointer;
+}
+
+.explorer-load-more:hover {
+  background: var(--hover-background, rgba(128, 128, 128, 0.12));
+}
