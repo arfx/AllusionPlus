@@ -194,9 +194,6 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const toggleFolder = useCallback(
     async (entry: ExplorerDirectoryEntry) => {
       const cachedDirectory = directories[entry.path];
-      if (cachedDirectory && !cachedDirectory.loading && !cachedDirectory.error && cachedDirectory.hasSubfolders === false) {
-        return;
-      }
       if (expandedPaths.has(entry.path)) {
         setExpandedPaths((previous) => {
           const next = new Set(previous);
@@ -205,27 +202,26 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         });
         return;
       }
-      setExpandedPaths((previous) => new Set(previous).add(entry.path));
-      let loadedDirectory = directories[entry.path];
-      if (!loadedDirectory || loadedDirectory.error) {
-        await readDirectory(entry.path);
-        const entries = await RendererMessenger.explorerReadDirectory(entry.path).catch(() => []);
-        loadedDirectory = {
+
+      let directory = cachedDirectory;
+      if (!directory || directory.error) {
+        const entries = await RendererMessenger.explorerReadDirectory(entry.path).catch((error) => {
+          console.warn('Could not read Explorer folder', entry.path, error);
+          return [];
+        });
+        directory = {
           entries,
           loading: false,
           hasSubfolders: entries.some((item) => item.isDirectory),
         };
-        setDirectories((previous) => ({ ...previous, [entry.path]: loadedDirectory! }));
+        setDirectories((previous) => ({ ...previous, [entry.path]: directory! }));
       }
-      if (!loadedDirectory.loading && loadedDirectory.hasSubfolders === false) {
-        setExpandedPaths((previous) => {
-          const next = new Set(previous);
-          next.delete(entry.path);
-          return next;
-        });
+
+      if (directory.error || directory.hasSubfolders) {
+        setExpandedPaths((previous) => new Set(previous).add(entry.path));
       }
     },
-    [directories, expandedPaths, readDirectory],
+    [directories, expandedPaths],
   );
 
   useEffect(() => {
