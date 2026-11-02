@@ -374,10 +374,23 @@ export const Thumbnail = observer(
           <div
             className="image-loading"
             data-thumbnail-state={file.previewThumbnailPath && displaySrc === file.previewThumbnailPath ? 'preview' : 'thumbnail'}
+            data-debug-file-id={fileId}
+            data-debug-loaded-file-id={loadedFileId ?? ''}
+            data-debug-display-src={displaySrc}
+            data-debug-loaded-src={loadedSrc ?? ''}
+            data-debug-image-complete={thumbnailRef.current?.complete ? 'true' : 'false'}
+            data-debug-natural-width={thumbnailRef.current?.naturalWidth ?? 0}
+            data-debug-image-current-src={thumbnailRef.current?.currentSrc ?? ''}
           >
             <span className="image-loading-spinner" />
             <span className="image-loading-label">
               {file.previewThumbnailPath && displaySrc === file.previewThumbnailPath ? 'PREVIEW' : 'THUMBNAIL'}
+            </span>
+            <span className="image-loading-debug">
+              IMG {thumbnailRef.current?.complete ? 'complete' : 'pending'} ·
+              {thumbnailRef.current?.naturalWidth ?? 0}px ·
+              FILE {loadedFileId === fileId ? 'match' : 'mismatch'} ·
+              SRC {loadedSrc === displaySrc ? 'match' : 'mismatch'}
             </span>
           </div>
         )}
