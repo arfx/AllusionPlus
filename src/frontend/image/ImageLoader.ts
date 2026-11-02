@@ -194,10 +194,6 @@ class ImageLoader {
         return thumbnailPath;
       }
     }
-    if (this.generatedSourceMtimes.get(fileId) === sourceMtime) {
-      return thumbnailPath;
-    }
-
     const handlerType = getHandler(normalizedExtension);
     switch (handlerType) {
       case 'web':
