@@ -180,6 +180,8 @@ type PersistentPreferenceFields =
   | 'outlinerWidth'
   | 'outlinerExpansion'
   | 'outlinerHeights'
+  | 'explorerRootDirectory'
+  | 'explorerIncludeSubfolders'
   | 'slideInspectorWidth'
   | 'overviewInspectorWidth'
   | 'recentlyUsedTagsMaxLength'
@@ -228,6 +230,8 @@ class UiStore {
   @observable outlinerWidth: number = UiStore.MIN_OUTLINER_WIDTH;
   readonly outlinerExpansion = observable<boolean>([true, true, true, true, true]);
   readonly outlinerHeights = observable<number>([200, 200, 200, 200, 200]);
+  @observable explorerRootDirectory: string = '';
+  @observable explorerIncludeSubfolders: boolean = false;
   @observable slideInspectorWidth: number = UiStore.MIN_INSPECTOR_WIDTH;
   @observable overviewInspectorWidth: number = UiStore.MIN_INSPECTOR_WIDTH;
   /** Whether to show the tags on images in the content view */
@@ -1667,6 +1671,14 @@ class UiStore {
     );
   }
 
+  @action.bound setExplorerRootDirectory(path: string): void {
+    this.explorerRootDirectory = path;
+  }
+
+  @action.bound setExplorerIncludeSubfolders(value: boolean): void {
+    this.explorerIncludeSubfolders = value;
+  }
+
   @action.bound setOutlinerHeights(newVal: number[]): void {
     // Keep older saved preferences compatible when new Outliner panels are added.
     this.outlinerHeights.replace(
@@ -1806,6 +1818,9 @@ class UiStore {
         if (prefs.outlinerHeights) {
           this.setOutlinerHeights(prefs.outlinerHeights);
         }
+        this.explorerRootDirectory =
+          typeof prefs.explorerRootDirectory === 'string' ? prefs.explorerRootDirectory : '';
+        this.explorerIncludeSubfolders = Boolean(prefs.explorerIncludeSubfolders ?? false);
 
         if (prefs.bulkAutoRemoveStrings) {
           this.replaceBulkAutoRemoveStrings(prefs.bulkAutoRemoveStrings);
@@ -1925,6 +1940,8 @@ class UiStore {
       isThumbnailResolutionOverlayEnabled: this.isThumbnailResolutionOverlayEnabled,
       outlinerExpansion: this.outlinerExpansion.slice(),
       outlinerHeights: this.outlinerHeights.slice(),
+      explorerRootDirectory: this.explorerRootDirectory,
+      explorerIncludeSubfolders: this.explorerIncludeSubfolders,
       autoDisableBulkTagNames: this.autoDisableBulkTagNames.slice(),
       bulkAutoRemoveStrings: this.bulkAutoRemoveStrings.slice(),
       outlinerWidth: this.outlinerWidth,
