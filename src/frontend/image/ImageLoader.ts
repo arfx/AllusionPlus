@@ -178,6 +178,10 @@ class ImageLoader {
     thumbnailDirectory: string,
     priority = 0,
   ): Promise<string> {
+    if (!thumbnailDirectory) {
+      throw new Error('Explorer thumbnail directory is not initialized');
+    }
+    await fse.ensureDir(thumbnailDirectory);
     const normalizedExtension = extension.toLowerCase();
     const thumbnailPath = getThumbnailPath(absolutePath, thumbnailDirectory);
     const fileId = `explorer:${absolutePath}`;
