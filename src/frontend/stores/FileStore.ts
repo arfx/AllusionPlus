@@ -1150,6 +1150,12 @@ class FileStore {
   }
 
   @action.bound async fetchAllFiles(): Promise<void> {
+    if (this.isExplorerMode) {
+      this.content = Content.All;
+      this.rootStore.uiStore.clearSearchCriteriaTree();
+      this.applyExplorerFiltersAndSort();
+      return;
+    }
     try {
       this.setContentAll();
       // Indicate a new fetch process
@@ -1228,6 +1234,11 @@ class FileStore {
 
   @action.bound async fetchFilesByQuery(): Promise<void> {
     const { uiStore } = this.rootStore;
+    if (this.isExplorerMode) {
+      this.content = Content.Query;
+      this.applyExplorerFiltersAndSort();
+      return;
+    }
     if (uiStore.searchRootGroup.children.length === 0) {
       return this.fetchAllFiles();
     }
@@ -1368,8 +1379,8 @@ class FileStore {
   @action private applyExplorerFiltersAndSort(): void {
     const { uiStore, tagStore, extraPropertyStore } = this.rootStore;
     const criteria = uiStore.searchRootGroup.children;
-    let files = this.explorerFiles.filter((file) =>
-      criteria.every((criterion) => {
+    let files = this.explorerFiles.filter((file) => {
+      const matches = criteria.map((criterion) => {
         if (criterion instanceof ClientStringSearchCriteria) {
           const value = String(
             criterion.key === 'name'
@@ -1417,8 +1428,9 @@ class FileStore {
           return criterion.operator.toLowerCase().includes('not') ? !matches : matches;
         }
         return true;
-      }),
-    );
+      });
+      return criteria.length === 0 || (uiStore.searchRootGroup.conjunction === 'or' ? matches.some(Boolean) : matches.every(Boolean));
+    });
 
     const direction = this.orderDirection === OrderDirection.Asc ? 1 : -1;
     const property = this.orderBy;
@@ -1453,10 +1465,11 @@ class FileStore {
 
   // Removes all items from fileList
   @action.bound clearFileList(): void {
-    this.explorerFiles = [];
-    for (const file of this.fileList) {
+    const filesToDispose = new Set([...this.fileList, ...this.explorerFiles]);
+    for (const file of filesToDispose) {
       file?.dispose();
     }
+    this.explorerFiles = [];
     this.numLoadedFiles = 0;
     this.fileDimensions.clear();
     this.fileList.clear();
