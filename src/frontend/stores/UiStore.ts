@@ -1585,7 +1585,11 @@ class UiStore {
   }
 
   @action.bound processGlobalShortCuts(e: KeyboardEvent): void {
-    if ((e.target as HTMLElement | null)?.matches('input')) {
+    const target = e.target as HTMLElement | null;
+    if (
+      target?.matches('input, textarea, select, [contenteditable="true"]') ||
+      target?.closest('.searchbar')
+    ) {
       return;
     }
     const combo = getKeyCombo(e);
