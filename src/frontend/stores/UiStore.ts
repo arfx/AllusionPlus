@@ -231,6 +231,7 @@ class UiStore {
   readonly outlinerExpansion = observable<boolean>([true, true, true, true, true]);
   readonly outlinerHeights = observable<number>([200, 200, 200, 200, 200]);
   @observable explorerRootDirectory: string = '';
+  @observable explorerCurrentDirectory: string = '';
   @observable explorerIncludeSubfolders: boolean = false;
   @observable slideInspectorWidth: number = UiStore.MIN_INSPECTOR_WIDTH;
   @observable overviewInspectorWidth: number = UiStore.MIN_INSPECTOR_WIDTH;
@@ -1673,6 +1674,10 @@ class UiStore {
 
   @action.bound setExplorerRootDirectory(path: string): void {
     this.explorerRootDirectory = path;
+  }
+
+  @action.bound setExplorerCurrentDirectory(path: string): void {
+    this.explorerCurrentDirectory = path;
   }
 
   @action.bound setExplorerIncludeSubfolders(value: boolean): void {
