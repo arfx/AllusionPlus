@@ -411,7 +411,7 @@ const FolderBookmarkDialog = observer(({ bookmark, onClose }: IFolderBookmarkDia
   };
 
   return (
-    <Dialog open title="Edit folder bookmark" icon={IconSet.FOLDER_CLOSE} onCancel={onClose}>
+    <Dialog open title={`Folder: "${bookmark.name}"`} icon={IconSet.FOLDER_CLOSE} onCancel={onClose}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
