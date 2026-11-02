@@ -206,25 +206,23 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         return;
       }
       setExpandedPaths((previous) => new Set(previous).add(entry.path));
-      if (!directories[entry.path] || directories[entry.path].error) {
+      let loadedDirectory = directories[entry.path];
+      if (!loadedDirectory || loadedDirectory.error) {
         await readDirectory(entry.path);
+        const entries = await RendererMessenger.explorerReadDirectory(entry.path).catch(() => []);
+        loadedDirectory = {
+          entries,
+          loading: false,
+          hasSubfolders: entries.some((item) => item.isDirectory),
+        };
+        setDirectories((previous) => ({ ...previous, [entry.path]: loadedDirectory! }));
       }
-      const loadedDirectory = await RendererMessenger.explorerReadDirectory(entry.path).catch(() => []);
-      if (!loadedDirectory.some((item) => item.isDirectory)) {
-        setDirectories((previous) => ({
-          ...previous,
-          [entry.path]: { entries: loadedDirectory, loading: false, hasSubfolders: false },
-        }));
+      if (!loadedDirectory.loading && loadedDirectory.hasSubfolders === false) {
         setExpandedPaths((previous) => {
           const next = new Set(previous);
           next.delete(entry.path);
           return next;
         });
-      } else {
-        setDirectories((previous) => ({
-          ...previous,
-          [entry.path]: { entries: loadedDirectory, loading: false, hasSubfolders: true },
-        }));
       }
     },
     [directories, expandedPaths, readDirectory],
