@@ -399,10 +399,25 @@ const FolderBookmarks = observer(() => {
     <div className="explorer-bookmarks">
       <div className="explorer-bookmarks-heading">Folder Bookmarks</div>
       {bookmarks.map((bookmark) => (
-        <div className="tree-content-label" key={bookmark.id} title={bookmark.path}>
+        <div
+          className="tree-content-label"
+          key={bookmark.id}
+          title={bookmark.path}
+          onClick={() => {
+            uiStore.setExplorerCurrentDirectory(bookmark.path);
+            uiStore.setExplorerIncludeSubfolders(bookmark.includeSubfolders);
+            const expansion = uiStore.outlinerExpansion.slice();
+            expansion[1] = true;
+            uiStore.setOutlinerExpansion(expansion);
+            if (!uiStore.isOutlinerOpen) uiStore.toggleOutliner();
+          }}
+          role="button"
+          tabIndex={0}
+        >
           <button
             className="btn btn-icon"
-            onClick={() => {
+            onClick={(event) => {
+              event.stopPropagation();
               uiStore.setExplorerCurrentDirectory(bookmark.path);
               uiStore.setExplorerIncludeSubfolders(bookmark.includeSubfolders);
               const expansion = uiStore.outlinerExpansion.slice();
@@ -417,7 +432,8 @@ const FolderBookmarks = observer(() => {
           <button
             className="btn btn-icon"
             title="Edit bookmark"
-            onClick={() => {
+            onClick={(event) => {
+              event.stopPropagation();
               const name = window.prompt('Bookmark name', bookmark.name);
               if (name === null) return;
               const includeSubfolders = window.confirm('Include subfolders?');
@@ -435,9 +451,10 @@ const FolderBookmarks = observer(() => {
           <button
             className="btn btn-icon"
             title="Remove bookmark"
-            onClick={() =>
-              saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id))
-            }
+            onClick={(event) => {
+              event.stopPropagation();
+              saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id));
+            }}
           >
             {IconSet.DELETE}
           </button>
