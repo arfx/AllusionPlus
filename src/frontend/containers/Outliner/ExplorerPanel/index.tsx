@@ -273,6 +273,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             console.warn('Could not scan Explorer directory', directory, error);
           }
         }
+      }
       if (!cancelled && scanId.current === currentScan) {
         await fileStore.setExplorerFiles(files);
       }
