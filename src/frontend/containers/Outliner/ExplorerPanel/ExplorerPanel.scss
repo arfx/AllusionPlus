@@ -76,3 +76,15 @@
 .explorer-tree-message.error {
   color: var(--error-color, #d66);
 }
+
+.explorer-recursive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 8px;
+  font-size: 0.9em;
+}
+
+.explorer-recursive-toggle input {
+  margin: 0;
+}
