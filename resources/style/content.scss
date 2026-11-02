@@ -201,14 +201,37 @@
 
 .image-loading {
   position: absolute;
-  z-index: 1;
-  width: 2rem;
-  aspect-ratio: 1 / 1;
-  margin: auto;
-  border-radius: 50%;
-  border: 0.25rem solid var(--background-color);
-  border-top-color: var(--accent-color);
-  animation: 1.5s spin infinite linear;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0;
+  border-radius: 0;
+  background: rgba(255, 170, 0, 0.18);
+  pointer-events: none;
+
+  .image-loading-spinner {
+    display: block;
+    width: 2rem;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    border: 0.25rem solid var(--background-color);
+    border-top-color: var(--accent-color);
+    animation: 1.5s spin infinite linear;
+  }
+
+  .image-loading-label {
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.2rem;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.65);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
 
   @keyframes spin {
     to {

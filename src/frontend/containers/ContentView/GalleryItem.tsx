@@ -311,7 +311,11 @@ export const Thumbnail = observer(
       return <span className="image-placeholder" />;
     }
     if (loadError) {
-      return <span className="image-loading" />;
+      return (
+        <div className="image-loading" data-thumbnail-state="error">
+          <span className="image-loading-label">LOAD ERROR</span>
+        </div>
+      );
     }
     if (imageSource.tag === 'ready' && 'err' in imageSource.value) {
       return <span className="image-error" />;
@@ -334,7 +338,17 @@ export const Thumbnail = observer(
             style={{ ...props.style, display: 'block' }}
           />
         )}
-        {loading && <span className="image-loading" />}
+        {loading && (
+          <div
+            className="image-loading"
+            data-thumbnail-state={file.previewThumbnailPath && displaySrc === file.previewThumbnailPath ? 'preview' : 'thumbnail'}
+          >
+            <span className="image-loading-spinner" />
+            <span className="image-loading-label">
+              {file.previewThumbnailPath && displaySrc === file.previewThumbnailPath ? 'PREVIEW' : 'THUMBNAIL'}
+            </span>
+          </div>
+        )}
       </>
     );
   },
