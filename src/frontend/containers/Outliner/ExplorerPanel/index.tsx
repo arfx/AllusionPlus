@@ -25,6 +25,7 @@ type FolderNodeProps = {
   directories: Record<string, DirectoryState>;
   onSelect: (path: string) => void;
   onToggle: (entry: ExplorerDirectoryEntry) => void;
+  onPrime: (entry: ExplorerDirectoryEntry) => void;
 };
 
 const FolderNode = ({
@@ -35,11 +36,12 @@ const FolderNode = ({
   directories,
   onSelect,
   onToggle,
+  onPrime,
 }: FolderNodeProps) => {
   const isExpanded = expandedPaths.has(entry.path);
   const directory = directories[entry.path];
   const children = directory?.entries.filter((item) => item.isDirectory) ?? [];
-  const canExpand = !directory || directory.loading || !!directory.error || children.length > 0;
+  const canExpand = directory ? (!!directory.error || children.length > 0) : true;
 
   return (
     <div className="explorer-folder-node">
@@ -52,6 +54,8 @@ const FolderNode = ({
             type="button"
             className="explorer-folder-toggle"
             aria-label={isExpanded ? 'Collapse folder' : 'Expand folder'}
+            onMouseEnter={() => onPrime(entry)}
+            onFocus={() => onPrime(entry)}
             onClick={() => onToggle(entry)}
           >
             {isExpanded ? '▾' : '▸'}
@@ -69,7 +73,7 @@ const FolderNode = ({
           <span>{entry.name}</span>
         </button>
       </div>
-      {isExpanded && (
+      {isExpanded && canExpand && (
         <div className="explorer-folder-children">
           {directory?.loading && <div className="explorer-tree-message">Loading…</div>}
           {directory?.error && (
@@ -85,11 +89,9 @@ const FolderNode = ({
               directories={directories}
               onSelect={onSelect}
               onToggle={onToggle}
+              onPrime={onPrime}
             />
           ))}
-          {!directory?.loading && !directory?.error && directory && children.length === 0 && (
-            <div className="explorer-tree-message">No subfolders</div>
-          )}
         </div>
       )}
     </div>
@@ -153,6 +155,11 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     void readDirectory(EXPLORER_COMPUTER_ROOT);
   }, [readDirectory]);
 
+  const primeFolder = useCallback((entry: ExplorerDirectoryEntry) => {
+    const cached = directories[entry.path];
+    if (!cached || cached.error) void readDirectory(entry.path);
+  }, [directories, readDirectory]);
+
   const chooseDirectory = useCallback(async () => {
     setIsChoosingDirectory(true);
     try {
@@ -185,6 +192,10 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
 
   const toggleFolder = useCallback(
     async (entry: ExplorerDirectoryEntry) => {
+      const cachedDirectory = directories[entry.path];
+      if (cachedDirectory && !cachedDirectory.loading && !cachedDirectory.error && !cachedDirectory.entries.some((item) => item.isDirectory)) {
+        return;
+      }
       if (expandedPaths.has(entry.path)) {
         setExpandedPaths((previous) => {
           const next = new Set(previous);
@@ -298,6 +309,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
               directories={directories}
               onSelect={selectDirectory}
               onToggle={toggleFolder}
+              onPrime={primeFolder}
             />
           ))}
         </aside>
