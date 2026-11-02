@@ -83,7 +83,6 @@ export interface IHotkeyMap {
   viewList: string;
   viewGrid: string;
   newRandomOrder: string;
-  refreshRandomOrder: string;
   viewMasonryVertical: string;
   viewMasonryHorizontal: string;
   viewSlide: string;
@@ -123,7 +122,6 @@ export const defaultHotkeyMap: IHotkeyMap = {
   viewList: 'alt + 1',
   viewGrid: 'alt + 2',
   newRandomOrder: 'shift + r',
-  refreshRandomOrder: 'shift + alt + r',
   viewMasonryVertical: 'alt + 3',
   viewMasonryHorizontal: 'alt + 4',
   search: 'mod + f',
@@ -1644,8 +1642,6 @@ class UiStore {
       this.setMethodList();
     } else if (matches(hotkeyMap.viewGrid)) {
       this.setMethodGrid();
-    } else if (matches(hotkeyMap.refreshRandomOrder)) {
-      if (this.rootStore.fileStore.orderBy === 'random') this.rootStore.fileStore.orderFilesBy('random');
     } else if (matches(hotkeyMap.newRandomOrder)) {
       this.newRandomOrder();
     } else if (matches(hotkeyMap.viewMasonryVertical)) {
