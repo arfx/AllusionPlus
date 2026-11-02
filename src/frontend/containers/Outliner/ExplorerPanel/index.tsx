@@ -104,6 +104,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string>();
   const [thumbnailPaths, setThumbnailPaths] = useState<Record<string, string>>({});
+  const [displayLimit, setDisplayLimit] = useState(120);
   const scanId = useRef(0);
 
   const readDirectory = useCallback(async (absolutePath: string) => {
@@ -323,9 +324,25 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     [files, imageExtensions],
   );
 
+  // Keep the DOM and thumbnail queue bounded when browsing large directories.
+  const visibleImageFiles = useMemo(
+    () => imageFiles.slice(0, displayLimit),
+    [displayLimit, imageFiles],
+  );
+  const visibleOtherFiles = useMemo(
+    () => files.filter((file) => !imageExtensions.has(file.name.split('.').pop()?.toLowerCase() ?? '')).slice(0, displayLimit),
+    [displayLimit, files, imageExtensions],
+  );
+  const hasMoreFiles = imageFiles.length > visibleImageFiles.length ||
+    files.length - imageFiles.length > visibleOtherFiles.length;
+
+  useEffect(() => {
+    setDisplayLimit(120);
+  }, [currentDirectory, includeSubfolders]);
+
   useEffect(() => {
     let cancelled = false;
-    const visiblePaths = new Set(imageFiles.map((file) => file.path));
+    const visiblePaths = new Set(visibleImageFiles.map((file) => file.path));
     setThumbnailPaths((previous) => {
       const next: Record<string, string> = {};
       Object.entries(previous).forEach(([filePath, thumbnailPath]) => {
@@ -337,8 +354,8 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     const generate = async () => {
       // Keep a small number of requests active so large folders do not flood
       // the shared worker queue or delay thumbnails already visible elsewhere.
-      for (let index = 0; index < imageFiles.length && !cancelled; index += 4) {
-        const batch = imageFiles.slice(index, index + 4);
+      for (let index = 0; index < visibleImageFiles.length && !cancelled; index += 4) {
+        const batch = visibleImageFiles.slice(index, index + 4);
         await Promise.all(
           batch.map(async (file) => {
             const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
@@ -379,7 +396,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     return () => {
       cancelled = true;
     };
-  }, [imageFiles, imageLoader, uiStore.thumbnailDirectory]);
+  }, [visibleImageFiles, imageLoader, uiStore.thumbnailDirectory]);
 
   const folderTree = useMemo(() => {
     if (!rootDirectory) {
@@ -459,7 +476,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             <Callout icon={IconSet.INFO}>This folder does not contain any files.</Callout>
           )}
           <div className="explorer-image-grid">
-            {imageFiles.map((file) => (
+            {visibleImageFiles.map((file) => (
               <div className="explorer-image-item" key={file.path} title={file.path}>
                 {thumbnailPaths[file.path] ? (
                   <img src={encodeFilePath(thumbnailPaths[file.path])} alt={file.name} loading="lazy" />
@@ -471,15 +488,24 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             ))}
           </div>
           <ul className="explorer-file-list">
-            {files
-              .filter((file) => !imageFiles.includes(file))
-              .map((file) => (
-                <li key={file.path} title={file.path}>
-                  <span className="explorer-file-icon">▧</span>
-                  {file.name}
-                </li>
-              ))}
+            {visibleOtherFiles.map((file) => (
+              <li key={file.path} title={file.path}>
+                <span className="explorer-file-icon">▧</span>
+                {file.name}
+              </li>
+            ))}
           </ul>
+          {hasMoreFiles && (
+            <button
+              type="button"
+              className="explorer-load-more"
+              onClick={() => setDisplayLimit((previous) => previous + 120)}
+            >
+              Load more ({imageFiles.length + files.length - imageFiles.length - displayLimit > 0
+                ? imageFiles.length + files.length - imageFiles.length - displayLimit
+                : 0} remaining)
+            </button>
+          )}
         </section>
       </div>
     </MultiSplitPane>
