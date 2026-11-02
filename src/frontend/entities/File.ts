@@ -123,7 +123,7 @@ export class ClientFile {
           options.onChange?.(file);
         }
       },
-      { delay: 500 },
+      { delay: this.autoSave ? 500 : 0 },
     );
 
     makeObservable(this);
