@@ -844,6 +844,23 @@ MainMessenger.onMessageBoxSync(dialog);
 
 MainMessenger.onGetPath((path) => app.getPath(path));
 
+MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
+  const entries = await fse.readdir(absolutePath, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isDirectory() || entry.isFile())
+    .map((entry) => ({
+      name: entry.name,
+      path: path.join(absolutePath, entry.name),
+      isDirectory: entry.isDirectory(),
+    }))
+    .sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    });
+});
+
 MainMessenger.onTrashFile((absolutePath) => shell.trashItem(absolutePath));
 
 MainMessenger.onIsFullScreen(() => mainWindow?.isFullScreen() ?? false);
