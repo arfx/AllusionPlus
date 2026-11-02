@@ -362,8 +362,9 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
                   await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
                 }
               }
-              if (!cancelled && thumbnailPath) {
-                setThumbnailPaths((previous) => ({ ...previous, [file.path]: thumbnailPath! }));
+              const resolvedThumbnailPath = thumbnailPath;
+              if (!cancelled && resolvedThumbnailPath) {
+                setThumbnailPaths((previous) => ({ ...previous, [file.path]: resolvedThumbnailPath }));
               }
             } catch (error) {
               // A single unsupported or damaged file must not prevent other previews.
