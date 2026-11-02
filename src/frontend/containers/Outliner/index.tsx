@@ -40,19 +40,32 @@ const Outliner = () => {
 
   const reorderPanel = useCallback((sourceId: string, targetId: string) => {
     setPanelOrder((current) => {
-      if (
-        !current.includes(sourceId as OutlinerPanelId) ||
-        !current.includes(targetId as OutlinerPanelId)
-      ) {
-        return current;
-      }
-      const next = current.filter((id) => id !== sourceId);
-      const targetIndex = next.indexOf(targetId as OutlinerPanelId);
-      next.splice(targetIndex, 0, sourceId as OutlinerPanelId);
+      const sourceIndex = current.indexOf(sourceId as OutlinerPanelId);
+      const targetIndex = current.indexOf(targetId as OutlinerPanelId);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return current;
+
+      const moveAtSameIndexes = <T,>(values: T[]): T[] => {
+        const nextValues = values.slice();
+        const [movedValue] = nextValues.splice(sourceIndex, 1);
+        nextValues.splice(targetIndex, 0, movedValue);
+        return nextValues;
+      };
+
+      // Keep each panel's collapsed state and remembered height attached to it.
+      uiStore.setOutlinerExpansion(
+        moveAtSameIndexes(Array.from(uiStore.outlinerExpansion)),
+      );
+      uiStore.setOutlinerHeights(
+        moveAtSameIndexes(Array.from(uiStore.outlinerHeights)),
+      );
+
+      const next = current.slice();
+      const [movedPanel] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, movedPanel);
       localStorage.setItem(PANEL_ORDER_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-  }, []);
+  }, [uiStore]);
 
   const panels: Record<OutlinerPanelId, React.ReactElement> = {
     locations: <LocationsPanel key="locations" />,
