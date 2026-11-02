@@ -293,6 +293,23 @@ export const MoveFilesToTrashBin = observer(() => {
   );
 });
 
+export interface IFolderBookmarkRemovalTarget {
+  name: string;
+}
+
+export const FolderBookmarkRemoval = (props: IRemovalProps<IFolderBookmarkRemovalTarget> & { onConfirmRemoval: () => void }) => (
+  <RemovalAlert
+    open
+    title="Folder bookmark removal"
+    information={`Are you sure you want to remove the folder bookmark "${props.object.name}"?`}
+    onCancel={props.onClose}
+    onConfirm={() => {
+      props.onClose();
+      props.onConfirmRemoval();
+    }}
+  />
+);
+
 export const SavedSearchRemoval = observer((props: IRemovalProps<ClientFileSearchItem>) => {
   const { searchStore } = useStore();
   return (
