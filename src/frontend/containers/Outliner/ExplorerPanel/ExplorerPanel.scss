@@ -97,3 +97,21 @@
 .explorer-recursive-toggle input {
   margin: 0;
 }
+
+.explorer-folder-toggle-placeholder {
+  flex: 0 0 17px;
+  width: 17px;
+}
+
+.explorer-bookmarks {
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border-color, rgba(128, 128, 128, 0.2));
+}
+
+.explorer-bookmarks-heading {
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.65;
+  text-transform: uppercase;
+}
