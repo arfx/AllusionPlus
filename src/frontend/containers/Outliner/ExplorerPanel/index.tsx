@@ -78,7 +78,7 @@ const FolderNode = ({
             />
           ))}
           {!directory?.loading && !directory?.error && directory && children.length === 0 && (
-            <div className="explorer-tree-message">Empty folder</div>
+            <div className="explorer-tree-message">No subfolders</div>
           )}
         </div>
       )}
@@ -119,6 +119,7 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
     async (absolutePath: string) => {
       setRootDirectory(absolutePath);
       setCurrentDirectory(absolutePath);
+      setDirectories({});
       setExpandedPaths(new Set([absolutePath]));
       await readDirectory(absolutePath);
     },
