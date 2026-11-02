@@ -27,15 +27,13 @@ const PREFERENCES_STORAGE_KEY = 'location-store-preferences';
 type Preferences = { managedExtensions: ManagedExtension[] };
 
 /**
- * Default managed extensions. In the everything-in model all file types are
- * indexed by default; the only seeded entry blocks EXR, which is experimental
- * and can slow the app down. Users can unblock it or add their own entries.
+ * Seed the settings list with every format Allusion knows how to display.
+ * All are enabled by default; users can still add custom extensions or block formats.
  */
 const DEFAULT_MANAGED_EXTENSIONS: ManagedExtension[] = IMG_EXTENSIONS.map((extension) => ({
   extension,
   blocked: false,
 }));
-
 /**
  * Compares metadata of two files to determine whether the files are (likely to be) identical
  * Note: note comparing size, since it can change, e.g. when writing tags to file metadata.
@@ -94,8 +92,15 @@ class LocationStore {
       const saved = prefs.managedExtensions ?? [];
       const savedByExtension = new Map(saved.map((entry) => [entry.extension, entry]));
       const managed = [
-        ...DEFAULT_MANAGED_EXTENSIONS.map((entry) => savedByExtension.get(entry.extension) ?? entry),
-        ...saved.filter((entry) => !DEFAULT_MANAGED_EXTENSIONS.some((defaultEntry) => defaultEntry.extension === entry.extension)),
+        ...DEFAULT_MANAGED_EXTENSIONS.map(
+          (entry) => savedByExtension.get(entry.extension) ?? entry,
+        ),
+        ...saved.filter(
+          (entry) =>
+            !DEFAULT_MANAGED_EXTENSIONS.some(
+              (defaultEntry) => defaultEntry.extension === entry.extension,
+            ),
+        ),
       ];
       runInAction(() => this.managedExtensions.replace(managed));
     } catch (e) {
