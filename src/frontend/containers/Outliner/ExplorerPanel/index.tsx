@@ -1,3 +1,4 @@
+import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { IconSet } from 'widgets/icons';
@@ -5,6 +6,7 @@ import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
 import { encodeFilePath } from '../../../../../common/fs';
+import { useStore } from '../../../contexts/StoreContext';
 import { ExplorerDirectoryEntry } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
 import './ExplorerPanel.scss';
@@ -87,13 +89,14 @@ const FolderNode = ({
   );
 };
 
-const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
+const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
+  const { uiStore } = useStore();
   const [rootDirectory, setRootDirectory] = useState<string>();
   const [currentDirectory, setCurrentDirectory] = useState<string>();
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
-  const [includeSubfolders, setIncludeSubfolders] = useState(false);
+  const [includeSubfolders, setIncludeSubfolders] = useState(uiStore.explorerIncludeSubfolders);
   const [recursiveFiles, setRecursiveFiles] = useState<ExplorerDirectoryEntry[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string>();
@@ -125,19 +128,24 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
     async (absolutePath: string) => {
       setRootDirectory(absolutePath);
       setCurrentDirectory(absolutePath);
+      uiStore.setExplorerRootDirectory(absolutePath);
       setDirectories({});
       setExpandedPaths(new Set([absolutePath]));
       await readDirectory(absolutePath);
     },
-    [readDirectory],
+    [readDirectory, uiStore],
   );
 
   useEffect(() => {
     let isActive = true;
-    RendererMessenger.getPath('home')
-      .then((home) => {
+    const initialDirectory = uiStore.explorerRootDirectory;
+    const resolveInitialDirectory = initialDirectory
+      ? Promise.resolve(initialDirectory)
+      : RendererMessenger.getPath('home');
+    resolveInitialDirectory
+      .then((directory) => {
         if (isActive) {
-          void selectRoot(home);
+          void selectRoot(directory);
         }
       })
       .catch((error) => {
@@ -146,7 +154,7 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
     return () => {
       isActive = false;
     };
-  }, [selectRoot]);
+  }, [selectRoot, uiStore]);
 
   const chooseDirectory = useCallback(async () => {
     setIsChoosingDirectory(true);
@@ -356,7 +364,11 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
             <input
               type="checkbox"
               checked={includeSubfolders}
-              onChange={(event) => setIncludeSubfolders(event.target.checked)}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setIncludeSubfolders(checked);
+                uiStore.setExplorerIncludeSubfolders(checked);
+              }}
             />
             Include subfolders
           </label>
@@ -397,6 +409,6 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
       </div>
     </MultiSplitPane>
   );
-};
+});
 
 export default ExplorerPanel;
