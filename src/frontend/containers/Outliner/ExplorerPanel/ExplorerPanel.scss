@@ -32,7 +32,12 @@
 }
 
 .explorer-folder-row.selected {
-  background: var(--selected-background, rgba(100, 150, 220, 0.2));
+  background: var(--background-color-selected, rgba(100, 150, 220, 0.2));
+}
+
+.explorer-folder-row:hover:not(.selected) {
+  background: var(--hover-color, rgba(128, 128, 128, 0.12));
+  color: var(--text-color-strong, inherit);
 }
 
 .explorer-folder-toggle,
