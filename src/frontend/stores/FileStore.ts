@@ -1375,6 +1375,17 @@ class FileStore {
     this.rootStore.uiStore.clearFileSelection();
   }
 
+  /** Leaves the temporary Explorer view before switching to a watched Location search. */
+  @action.bound exitExplorerMode(): void {
+    if (!this.isExplorerMode) return;
+    const visibleFiles = new Set(this.fileList.filter((file): file is ClientFile => !!file));
+    this.explorerFiles.forEach((file) => {
+      if (!visibleFiles.has(file)) file.dispose();
+    });
+    this.explorerFiles = [];
+    this.isExplorerMode = false;
+  }
+
   /** Applies the existing search criteria and sort settings to the in-memory Explorer files. */
   @action private applyExplorerFiltersAndSort(): void {
     const { uiStore, tagStore, extraPropertyStore } = this.rootStore;
