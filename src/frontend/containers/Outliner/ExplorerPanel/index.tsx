@@ -164,6 +164,16 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
     }
   }, [selectRoot]);
 
+  const selectDirectory = useCallback(
+    (absolutePath: string) => {
+      setCurrentDirectory(absolutePath);
+      if (!directories[absolutePath]) {
+        void readDirectory(absolutePath);
+      }
+    },
+    [directories, readDirectory],
+  );
+
   const toggleFolder = useCallback(
     async (entry: ExplorerDirectoryEntry) => {
       if (expandedPaths.has(entry.path)) {
@@ -201,12 +211,14 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
 
     const scan = async () => {
       const pending = [currentDirectory];
+      let queueIndex = 0;
+      let skippedDirectories = 0;
       const visited = new Set<string>();
       const foundFiles: ExplorerDirectoryEntry[] = [];
       let scannedDirectories = 0;
 
-      while (pending.length > 0 && !cancelled && scanId.current === thisScan) {
-        const directoryPath = pending.shift()!;
+      while (queueIndex < pending.length && !cancelled && scanId.current === thisScan) {
+        const directoryPath = pending[queueIndex++];
         if (visited.has(directoryPath)) {
           continue;
         }
@@ -227,12 +239,18 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
           }
         } catch (error) {
           // A permission-denied or disconnected folder should not stop the rest of the scan.
+          skippedDirectories += 1;
           console.warn('Could not scan Explorer directory', directoryPath, error);
         }
       }
 
       if (!cancelled && scanId.current === thisScan) {
         setRecursiveFiles(foundFiles);
+        setScanError(
+          skippedDirectories > 0
+            ? `Could not read ${skippedDirectories} folder(s); some files may be missing.`
+            : undefined,
+        );
         setIsScanning(false);
       }
     };
@@ -258,7 +276,20 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
   );
 
   const imageExtensions = useMemo(
-    () => new Set(['gif', 'png', 'apng', 'jpg', 'jpeg', 'jfif', 'webp', 'avif', 'bmp', 'ico', 'svg']),
+    () =>
+      new Set([
+        'gif',
+        'png',
+        'apng',
+        'jpg',
+        'jpeg',
+        'jfif',
+        'webp',
+        'avif',
+        'bmp',
+        'ico',
+        'svg',
+      ]),
     [],
   );
 
@@ -266,8 +297,7 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
     () =>
       files.filter((file) => {
         const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-        return imageExtensions.has(extension) &&
-          !['psd', 'kra', 'exr', 'blend'].includes(extension);
+        return imageExtensions.has(extension);
       }),
     [files, imageExtensions],
   );
@@ -313,7 +343,7 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
               selectedPath={currentDirectory ?? ''}
               expandedPaths={expandedPaths}
               directories={directories}
-              onSelect={setCurrentDirectory}
+              onSelect={selectDirectory}
               onToggle={toggleFolder}
             />
           ))}
@@ -342,7 +372,7 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
             <div className="explorer-scan-status">Scanning subfolders… ({files.length} files found)</div>
           )}
           {scanError && <Callout icon={IconSet.INFO}>Could not complete the scan: {scanError}</Callout>}
-          {!isScanning && files.length === 0 && (
+          {!isScanning && !directories[currentDirectory ?? '']?.loading && files.length === 0 && (
             <Callout icon={IconSet.INFO}>This folder does not contain any files.</Callout>
           )}
           <div className="explorer-image-grid">
