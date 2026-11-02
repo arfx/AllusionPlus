@@ -12,7 +12,7 @@ import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import Tree, { ITreeItem, createBranchOnKeyDown } from 'widgets/tree';
 import { generateId } from '../../../../api/id';
 import { ExplorerBookmark, EXPLORER_BOOKMARKS_CHANGED, getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
-import { SavedSearchRemoval } from '../../../components/RemovalAlert';
+import { FolderBookmarkRemoval, SavedSearchRemoval } from '../../../components/RemovalAlert';
 import { useStore } from '../../../contexts/StoreContext';
 import { DnDSearchType, SearchDnDProvider, useSearchDnD } from '../../../contexts/TagDnDContext';
 import { ClientFileSearchCriteria, CustomKeyDict } from '../../../entities/SearchCriteria';
@@ -435,10 +435,14 @@ const FolderBookmarkDialog = observer(({ bookmark, onClose }: IFolderBookmarkDia
   );
 });
 
-const FolderBookmarks = observer(() => {
+interface IFolderBookmarksProps {
+  onEdit: (bookmark: ExplorerBookmark) => void;
+  onDelete: (bookmark: ExplorerBookmark) => void;
+}
+
+const FolderBookmarks = observer(({ onEdit, onDelete }: IFolderBookmarksProps) => {
   const { uiStore } = useStore();
   const [bookmarks, setBookmarks] = useState<ExplorerBookmark[]>(() => getExplorerBookmarks());
-  const [editingBookmark, setEditingBookmark] = useState<ExplorerBookmark>();
   const show = useContextMenu();
 
   useEffect(() => {
@@ -458,67 +462,53 @@ const FolderBookmarks = observer(() => {
 
   if (bookmarks.length === 0) return null;
   return (
-    <>
-      <div className="explorer-bookmarks">
-        <div className="explorer-bookmarks-heading">Folder Bookmarks</div>
-        {bookmarks.map((bookmark) => (
-          <div
-            className="tree-content-label explorer-bookmark-row"
-            key={bookmark.id}
-            title={bookmark.path}
-            onClick={() => openBookmark(bookmark)}
-            onContextMenu={(event) => {
+    <div className="saved-folder-bookmarks">
+      {bookmarks.map((bookmark) => (
+        <div
+          className="tree-content-label"
+          key={bookmark.id}
+          title={bookmark.path}
+          onClick={() => openBookmark(bookmark)}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            show(
+              event.clientX,
+              event.clientY,
+              <Menu>
+                <MenuItem text="Open folder" onClick={() => openBookmark(bookmark)} icon={IconSet.FOLDER_CLOSE} />
+                <MenuItem text="Edit" onClick={() => onEdit(bookmark)} icon={IconSet.EDIT} />
+                <MenuItem text="Delete" onClick={() => onDelete(bookmark)} icon={IconSet.DELETE} />
+              </Menu>,
+            );
+          }}
+        >
+          {IconSet.FOLDER_CLOSE}
+          <div className="label-text">{bookmark.name}</div>
+          <button
+            className="btn btn-icon"
+            title="Edit"
+            onClick={(event) => {
               event.preventDefault();
-              show(
-                event.clientX,
-                event.clientY,
-                <Menu>
-                  <MenuItem text="Open folder" onClick={() => openBookmark(bookmark)} icon={IconSet.FOLDER_CLOSE} />
-                  <MenuItem text="Edit bookmark" onClick={() => setEditingBookmark(bookmark)} icon={IconSet.EDIT} />
-                  <MenuItem
-                    text="Remove bookmark"
-                    onClick={() => {
-                      if (window.confirm(`Remove folder bookmark "${bookmark.name}"?`)) {
-                        saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id));
-                      }
-                    }}
-                    icon={IconSet.DELETE}
-                  />
-                </Menu>,
-              );
+              event.stopPropagation();
+              onEdit(bookmark);
             }}
           >
-            {IconSet.FOLDER_CLOSE}
-            <div className="label-text">{bookmark.name}</div>
-            <button
-              className="btn btn-icon"
-              title="Edit bookmark"
-              onClick={(event) => {
-                event.stopPropagation();
-                setEditingBookmark(bookmark);
-              }}
-            >
-              {IconSet.EDIT}
-            </button>
-            <button
-              className="btn btn-icon"
-              title="Remove bookmark"
-              onClick={(event) => {
-                event.stopPropagation();
-                if (window.confirm(`Remove folder bookmark "${bookmark.name}"?`)) {
-                  saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id));
-                }
-              }}
-            >
-              {IconSet.DELETE}
-            </button>
-          </div>
-        ))}
-      </div>
-      {editingBookmark && (
-        <FolderBookmarkDialog bookmark={editingBookmark} onClose={() => setEditingBookmark(undefined)} />
-      )}
-    </>
+            {IconSet.EDIT}
+          </button>
+          <button
+            className="btn btn-icon"
+            title="Delete"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onDelete(bookmark);
+            }}
+          >
+            {IconSet.DELETE}
+          </button>
+        </div>
+      ))}
+    </div>
   );
 });
 
@@ -530,6 +520,8 @@ const SavedSearchesPanel = observer((props: Partial<MultiSplitPaneProps>) => {
 
   const [editableSearch, setEditableSearch] = useState<ClientFileSearchItem>();
   const [deletableSearch, setDeletableSearch] = useState<ClientFileSearchItem>();
+  const [editableBookmark, setEditableBookmark] = useState<ExplorerBookmark>();
+  const [deletableBookmark, setDeletableBookmark] = useState<ExplorerBookmark>();
 
   const saveCurrentSearch = async () => {
     const savedSearch = await searchStore.create(
@@ -567,7 +559,7 @@ const SavedSearchesPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         }
         {...props}
       >
-        <FolderBookmarks />
+        <FolderBookmarks onEdit={setEditableBookmark} onDelete={setDeletableBookmark} />
         <SavedSearchesList
           onEdit={setEditableSearch}
           onDelete={setDeletableSearch}
@@ -588,6 +580,21 @@ const SavedSearchesPanel = observer((props: Partial<MultiSplitPaneProps>) => {
           <SavedSearchRemoval
             object={deletableSearch}
             onClose={() => setDeletableSearch(undefined)}
+          />
+        )}
+        {editableBookmark && (
+          <FolderBookmarkDialog
+            bookmark={editableBookmark}
+            onClose={() => setEditableBookmark(undefined)}
+          />
+        )}
+        {deletableBookmark && (
+          <FolderBookmarkRemoval
+            object={deletableBookmark}
+            onClose={() => setDeletableBookmark(undefined)}
+            onConfirmRemoval={() =>
+              saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== deletableBookmark.id))
+            }
           />
         )}
       </MultiSplitPane>
