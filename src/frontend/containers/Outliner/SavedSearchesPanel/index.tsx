@@ -5,10 +5,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
 import { IconSet } from 'widgets/icons';
 import { Menu, MenuItem, useContextMenu } from 'widgets/menus';
+import { Dialog } from 'widgets/popovers';
+import { Button } from 'widgets/button';
 import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import Tree, { ITreeItem, createBranchOnKeyDown } from 'widgets/tree';
 import { generateId } from '../../../../api/id';
+import { ExplorerBookmark, EXPLORER_BOOKMARKS_CHANGED, getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
 import { SavedSearchRemoval } from '../../../components/RemovalAlert';
 import { useStore } from '../../../contexts/StoreContext';
 import { DnDSearchType, SearchDnDProvider, useSearchDnD } from '../../../contexts/TagDnDContext';
@@ -23,7 +26,6 @@ import SearchItemDialog from '../../AdvancedSearch/SearchItemDialog';
 import { IExpansionState } from '../../types';
 import { createDragReorderHelper } from '../TreeItemDnD';
 import { triggerContextMenuEvent } from '../utils';
-import { ExplorerBookmark, EXPLORER_BOOKMARKS_CHANGED, getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
 
 // Tooltip info
 const enum Tooltip {
@@ -386,81 +388,127 @@ const SavedSearchesList = ({ onDelete, onEdit, onDuplicate, onReplace }: ISearch
   );
 };
 
+interface IFolderBookmarkDialogProps {
+  bookmark: ExplorerBookmark;
+  onClose: () => void;
+}
+
+const FolderBookmarkDialog = observer(({ bookmark, onClose }: IFolderBookmarkDialogProps) => {
+  const [name, setName] = useState(bookmark.name);
+  const [path, setPath] = useState(bookmark.path);
+  const [includeSubfolders, setIncludeSubfolders] = useState(bookmark.includeSubfolders);
+
+  const save = () => {
+    if (!path.trim()) return;
+    saveExplorerBookmarks(
+      getExplorerBookmarks().map((item) =>
+        item.id === bookmark.id
+          ? { ...item, name: name.trim() || path.split(/[\\\\/]/).pop() || item.name, path: path.trim(), includeSubfolders }
+          : item,
+      ),
+    );
+    onClose();
+  };
+
+  return (
+    <Dialog open title="Edit folder bookmark" icon={IconSet.FOLDER_CLOSE} onCancel={onClose}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          save();
+        }}
+      >
+        <label htmlFor="folder-bookmark-name">Name</label>
+        <input id="folder-bookmark-name" className="input" value={name} onChange={(event) => setName(event.target.value)} />
+        <label htmlFor="folder-bookmark-path">Folder path</label>
+        <input id="folder-bookmark-path" className="input" value={path} onChange={(event) => setPath(event.target.value)} />
+        <label className="checkbox">
+          <input type="checkbox" checked={includeSubfolders} onChange={(event) => setIncludeSubfolders(event.target.checked)} />
+          Include subfolders
+        </label>
+        <fieldset className="dialog-actions">
+          <Button styling="outlined" text="Cancel" icon={IconSet.CLOSE} onClick={onClose} />
+          <Button styling="filled" text="Save" icon={IconSet.SELECT_CHECKED} onClick={save} disabled={!path.trim()} />
+        </fieldset>
+      </form>
+    </Dialog>
+  );
+});
+
 const FolderBookmarks = observer(() => {
   const { uiStore } = useStore();
   const [bookmarks, setBookmarks] = useState<ExplorerBookmark[]>(() => getExplorerBookmarks());
+  const [editingBookmark, setEditingBookmark] = useState<ExplorerBookmark>();
+  const show = useContextMenu();
+
   useEffect(() => {
     const refresh = () => setBookmarks(getExplorerBookmarks());
     window.addEventListener(EXPLORER_BOOKMARKS_CHANGED, refresh);
     return () => window.removeEventListener(EXPLORER_BOOKMARKS_CHANGED, refresh);
   }, []);
+
+  const openBookmark = (bookmark: ExplorerBookmark) => {
+    uiStore.setExplorerCurrentDirectory(bookmark.path);
+    uiStore.setExplorerIncludeSubfolders(bookmark.includeSubfolders);
+    const expansion = uiStore.outlinerExpansion.slice();
+    expansion[1] = true;
+    uiStore.setOutlinerExpansion(expansion);
+    if (!uiStore.isOutlinerOpen) uiStore.toggleOutliner();
+  };
+
   if (bookmarks.length === 0) return null;
   return (
-    <div className="explorer-bookmarks">
-      <div className="explorer-bookmarks-heading">Folder Bookmarks</div>
-      {bookmarks.map((bookmark) => (
-        <div
-          className="tree-content-label"
-          key={bookmark.id}
-          title={bookmark.path}
-          onClick={() => {
-            uiStore.setExplorerCurrentDirectory(bookmark.path);
-            uiStore.setExplorerIncludeSubfolders(bookmark.includeSubfolders);
-            const expansion = uiStore.outlinerExpansion.slice();
-            expansion[1] = true;
-            uiStore.setOutlinerExpansion(expansion);
-            if (!uiStore.isOutlinerOpen) uiStore.toggleOutliner();
-          }}
-          role="button"
-          tabIndex={0}
-        >
-          <button
-            className="btn btn-icon"
-            onClick={(event) => {
-              event.stopPropagation();
-              uiStore.setExplorerCurrentDirectory(bookmark.path);
-              uiStore.setExplorerIncludeSubfolders(bookmark.includeSubfolders);
-              const expansion = uiStore.outlinerExpansion.slice();
-              expansion[1] = true;
-              uiStore.setOutlinerExpansion(expansion);
-              if (!uiStore.isOutlinerOpen) uiStore.toggleOutliner();
-            }}
-          >
-            {IconSet.FOLDER_CLOSE}
-          </button>
-          <div className="label-text">{bookmark.name}</div>
-          <button
-            className="btn btn-icon"
-            title="Edit bookmark"
-            onClick={(event) => {
-              event.stopPropagation();
-              const name = window.prompt('Bookmark name', bookmark.name);
-              if (name === null) return;
-              const includeSubfolders = window.confirm('Include subfolders?');
-              saveExplorerBookmarks(
-                getExplorerBookmarks().map((item) =>
-                  item.id === bookmark.id
-                    ? { ...item, name: name.trim() || item.name, includeSubfolders }
-                    : item,
-                ),
+    <>
+      <div className="explorer-bookmarks">
+        <div className="explorer-bookmarks-heading">Folder Bookmarks</div>
+        {bookmarks.map((bookmark) => (
+          <div
+            className="tree-content-label explorer-bookmark-row"
+            key={bookmark.id}
+            title={bookmark.path}
+            onClick={() => openBookmark(bookmark)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              show(
+                event.clientX,
+                event.clientY,
+                <Menu>
+                  <MenuItem text="Open folder" onClick={() => openBookmark(bookmark)} icon={IconSet.FOLDER_CLOSE} />
+                  <MenuItem text="Edit bookmark" onClick={() => setEditingBookmark(bookmark)} icon={IconSet.EDIT} />
+                  <MenuItem text="Remove bookmark" onClick={() => saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id))} icon={IconSet.DELETE} />
+                </Menu>,
               );
             }}
           >
-            {IconSet.EDIT}
-          </button>
-          <button
-            className="btn btn-icon"
-            title="Remove bookmark"
-            onClick={(event) => {
-              event.stopPropagation();
-              saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id));
-            }}
-          >
-            {IconSet.DELETE}
-          </button>
-        </div>
-      ))}
-    </div>
+            {IconSet.FOLDER_CLOSE}
+            <div className="label-text">{bookmark.name}</div>
+            <button
+              className="btn btn-icon"
+              title="Edit bookmark"
+              onClick={(event) => {
+                event.stopPropagation();
+                setEditingBookmark(bookmark);
+              }}
+            >
+              {IconSet.EDIT}
+            </button>
+            <button
+              className="btn btn-icon"
+              title="Remove bookmark"
+              onClick={(event) => {
+                event.stopPropagation();
+                saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id));
+              }}
+            >
+              {IconSet.DELETE}
+            </button>
+          </div>
+        ))}
+      </div>
+      {editingBookmark && (
+        <FolderBookmarkDialog bookmark={editingBookmark} onClose={() => setEditingBookmark(undefined)} />
+      )}
+    </>
   );
 });
 
