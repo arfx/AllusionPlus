@@ -6,7 +6,7 @@ import { getThumbnailPath } from 'common/fs';
 import { batchReducer, promiseAllLimit } from 'common/promise';
 import { DataStorage, makeFileBatchFetcher } from '../../api/data-storage';
 import { OrderDirection } from '../../api/data-storage-search';
-import { FileStats, FileDTO, ManagedExtension } from '../../api/file';
+import { FileStats, FileDTO, ManagedExtension, IMG_EXTENSIONS } from '../../api/file';
 import { ID, generateId } from '../../api/id';
 import { LocationDTO } from '../../api/location';
 import { RendererMessenger } from '../../ipc/renderer';
@@ -31,7 +31,10 @@ type Preferences = { managedExtensions: ManagedExtension[] };
  * indexed by default; the only seeded entry blocks EXR, which is experimental
  * and can slow the app down. Users can unblock it or add their own entries.
  */
-const DEFAULT_MANAGED_EXTENSIONS: ManagedExtension[] = [{ extension: 'exr', blocked: true }];
+const DEFAULT_MANAGED_EXTENSIONS: ManagedExtension[] = IMG_EXTENSIONS.map((extension) => ({
+  extension,
+  blocked: false,
+}));
 
 /**
  * Compares metadata of two files to determine whether the files are (likely to be) identical
@@ -88,7 +91,12 @@ class LocationStore {
     // Restore preferences
     try {
       const prefs = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) || '') as Preferences;
-      const managed = prefs.managedExtensions ?? DEFAULT_MANAGED_EXTENSIONS;
+      const saved = prefs.managedExtensions ?? [];
+      const savedByExtension = new Map(saved.map((entry) => [entry.extension, entry]));
+      const managed = [
+        ...DEFAULT_MANAGED_EXTENSIONS.map((entry) => savedByExtension.get(entry.extension) ?? entry),
+        ...saved.filter((entry) => !DEFAULT_MANAGED_EXTENSIONS.some((defaultEntry) => defaultEntry.extension === entry.extension)),
+      ];
       runInAction(() => this.managedExtensions.replace(managed));
     } catch (e) {
       // If no preferences found, use defaults
