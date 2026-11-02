@@ -2009,7 +2009,16 @@ class UiStore {
   }
 
   @action private viewQueryContent(): void {
-    this.rootStore.fileStore.fetchFilesByQuery();
+    const fileStore = this.rootStore.fileStore;
+    const isLocationSearch = this.searchRootGroup.children.some(
+      (criterion) =>
+        criterion.key === 'absolutePath' &&
+        criterion.operator.toLowerCase().includes('startswith'),
+    );
+    if (fileStore.isExplorerMode && isLocationSearch) {
+      fileStore.exitExplorerMode();
+    }
+    fileStore.fetchFilesByQuery();
   }
 
   @action private setIsOutlinerOpen(value: boolean = true) {
