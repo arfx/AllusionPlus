@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { IconSet } from 'widgets/icons';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
@@ -95,6 +95,8 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
+  const [includeSubfolders, setIncludeSubfolders] = useState(uiStore.explorerIncludeSubfolders);
+  const scanId = useRef(0);
 
   const readDirectory = useCallback(async (absolutePath: string) => {
     setDirectories((previous) => ({
@@ -188,6 +190,52 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     [directories, expandedPaths, readDirectory],
   );
 
+  useEffect(() => {
+    const selectedDirectory = uiStore.explorerCurrentDirectory;
+    if (!selectedDirectory) return;
+    const currentScan = ++scanId.current;
+    let cancelled = false;
+
+    const scan = async () => {
+      const files: string[] = [];
+      if (!includeSubfolders) {
+        const entries = await RendererMessenger.explorerReadDirectory(selectedDirectory);
+        files.push(...entries.filter((entry) => !entry.isDirectory).map((entry) => entry.path));
+      } else {
+        const queue = [selectedDirectory];
+        const visited = new Set<string>();
+        let queueIndex = 0;
+        const worker = async () => {
+          while (!cancelled && scanId.current === currentScan) {
+            const directory = queue[queueIndex++];
+            if (!directory) return;
+            if (visited.has(directory)) continue;
+            visited.add(directory);
+            try {
+              const entries = await RendererMessenger.explorerReadDirectory(directory);
+              if (cancelled || scanId.current !== currentScan) return;
+              entries.forEach((entry) => {
+                if (entry.isDirectory) queue.push(entry.path);
+                else files.push(entry.path);
+              });
+            } catch (error) {
+              console.warn('Could not scan Explorer directory', directory, error);
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: 4 }, () => worker()));
+      }
+      if (!cancelled && scanId.current === currentScan) {
+        await fileStore.setExplorerFiles(files);
+      }
+    };
+
+    void scan().catch((error) => console.error('Could not load Explorer gallery files', error));
+    return () => {
+      cancelled = true;
+      scanId.current += 1;
+    };
+  }, [fileStore, includeSubfolders, uiStore.explorerCurrentDirectory]);
   const folderTree = rootDirectory
     ? [{
         name: rootDirectory.split(/[\\/]/).filter(Boolean).pop() || rootDirectory,
@@ -215,6 +263,17 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     >
       <div className="explorer-browser">
         <aside className="explorer-folder-tree" aria-label="Folder tree">
+          <label className="explorer-recursive-toggle">
+            <input
+              type="checkbox"
+              checked={includeSubfolders}
+              onChange={(event) => {
+                setIncludeSubfolders(event.target.checked);
+                uiStore.setExplorerIncludeSubfolders(event.target.checked);
+              }}
+            />
+            Include subfolders
+          </label>
           {folderTree.map((root) => (
             <FolderNode
               key={root.path}
