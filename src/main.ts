@@ -850,7 +850,7 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
       const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
       const roots = await Promise.all(
         letters.map(async (letter) => {
-          const drivePath = `${letter}:\\\\`;
+          const drivePath = `${letter}:\\`;
           try {
             const stats = await fse.stat(drivePath);
             return stats.isDirectory()
