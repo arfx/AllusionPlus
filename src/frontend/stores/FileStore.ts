@@ -110,6 +110,8 @@ class FileStore {
   /** The origin of the current files that are shown */
   @observable private content: Content = Content.All;
   @observable isExplorerMode: boolean = false;
+  /** Complete in-memory Explorer result set; never persisted in the library database. */
+  private explorerFiles: ClientFile[] = [];
   @observable orderDirection: OrderDirection = OrderDirection.Desc;
   @observable orderBy: OrderBy<FileDTO> = 'dateAdded';
   @observable isNaturalOrderingEnabled: boolean = false;
@@ -965,7 +967,10 @@ class FileStore {
   }
 
   @action.bound async refetch(): Promise<void> {
-    if (this.isExplorerMode) return;
+    if (this.isExplorerMode) {
+      this.applyExplorerFiltersAndSort();
+      return;
+    }
     if (this.showsAllContent) {
       return this.fetchAllFiles();
     } else if (this.showsUntaggedContent) {
@@ -1352,15 +1357,103 @@ class FileStore {
     }
     runInAction(() => {
       this.clearFileList();
-      this.replaceFileList(files);
+      this.explorerFiles = files;
+      this.applyExplorerFiltersAndSort();
       this.fileListLastRefetch = new Date();
-      this.numFilteredFiles = files.length;
     });
     this.rootStore.uiStore.clearFileSelection();
   }
 
+  /** Applies the existing search criteria and sort settings to the in-memory Explorer files. */
+  @action private applyExplorerFiltersAndSort(): void {
+    const { uiStore, tagStore, extraPropertyStore } = this.rootStore;
+    const criteria = uiStore.searchRootGroup.children;
+    let files = this.explorerFiles.filter((file) =>
+      criteria.every((criterion) => {
+        if (criterion instanceof ClientStringSearchCriteria) {
+          const value = String(
+            criterion.key === 'filename'
+              ? file.filename
+              : criterion.key === 'name'
+              ? file.name
+              : criterion.key === 'absolutePath'
+              ? file.absolutePath
+              : criterion.key === 'extension'
+              ? file.extension
+              : '',
+          );
+          const query = criterion.value;
+          const left = criterion.operator.toLowerCase().includes('ignorecase')
+            ? value.toLocaleLowerCase()
+            : value;
+          const right = criterion.operator.toLowerCase().includes('ignorecase')
+            ? query.toLocaleLowerCase()
+            : query;
+          switch (criterion.operator) {
+            case 'equals':
+            case 'equalsIgnoreCase':
+              return left === right;
+            case 'notEqual':
+              return left !== right;
+            case 'startsWith':
+            case 'startsWithIgnoreCase':
+              return left.startsWith(right);
+            case 'notStartsWith':
+              return !left.startsWith(right);
+            case 'notContains':
+              return !left.includes(right);
+            case 'contains':
+            default:
+              return left.includes(right);
+          }
+        }
+        if (criterion instanceof ClientTagSearchCriteria) {
+          const tag = criterion.value ? tagStore.get(criterion.value) : undefined;
+          const matches = tag
+            ? Array.from(file.tags).some((fileTag) =>
+                criterion.operator.toLowerCase().includes('recursively')
+                  ? tag.getImpliedSubTree().includes(fileTag)
+                  : fileTag === tag,
+              )
+            : file.tags.size === 0;
+          return criterion.operator.toLowerCase().includes('not') ? !matches : matches;
+        }
+        return true;
+      }),
+    );
+
+    const direction = this.orderDirection === OrderDirection.Asc ? 1 : -1;
+    const property = this.orderBy;
+    files = files.slice().sort((a, b) => {
+      let av: unknown;
+      let bv: unknown;
+      if (property === 'extraProperty') {
+        const ep = extraPropertyStore.get(this.orderByExtraProperty);
+        av = ep ? a.extraProperties.get(ep) : undefined;
+        bv = ep ? b.extraProperties.get(ep) : undefined;
+      } else if (property === 'tagGroup') {
+        av = Array.from(a.tags).map((tag) => tag.name).sort().join('|');
+        bv = Array.from(b.tags).map((tag) => tag.name).sort().join('|');
+      } else {
+        av = a[property];
+        bv = b[property];
+      }
+      if (av instanceof Date) av = av.getTime();
+      if (bv instanceof Date) bv = bv.getTime();
+      if (av === bv) return a.name.localeCompare(b.name, undefined, { numeric: true });
+      if (av === undefined || av === null) return 1;
+      if (bv === undefined || bv === null) return -1;
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * direction;
+      return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' }) * direction;
+    });
+    this.replaceFileList(files);
+    this.numFilteredFiles = files.length;
+    this.fileListLastRefetch = new Date();
+  }
+
   // Removes all items from fileList
   @action.bound clearFileList(): void {
+    this.explorerFiles = [];
     for (const file of this.fileList) {
       file?.dispose();
     }
