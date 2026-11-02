@@ -30,6 +30,8 @@ type FormatHandlerType =
   | 'exrLoader'
   | 'psdLoader'
   | 'extractEmbeddedThumbnailOnly'
+  | 'cbzArchive'
+  | 'osThumbnail'
   | 'placeholder' // Any file without a specific handler: static colored thumbnail, no preview
   | 'none';
 
@@ -55,6 +57,9 @@ const FormatHandlers: Partial<Record<string, FormatHandlerType>> = {
   tiff: 'tifLoader',
   psd: 'psdLoader',
   kra: 'extractEmbeddedThumbnailOnly',
+  cbz: 'cbzArchive',
+  pdf: 'osThumbnail',
+  cbr: 'osThumbnail',
   // xcf: 'extractEmbeddedThumbnailOnly',
   exr: 'exrLoader',
   mp4: 'web',
@@ -219,6 +224,14 @@ class ImageLoader {
       case 'psdLoader':
         await generateThumbnail(this.psdLoader, absolutePath, thumbnailPath, thumbnailMaxSize);
         break;
+      case 'cbzArchive':
+        await this.generateCbzThumbnail(absolutePath, thumbnailPath, fileId, priority);
+        break;
+      case 'osThumbnail':
+        if (!(await this.generateOsThumbnail(absolutePath, thumbnailPath))) {
+          await this.generatePlaceholderThumbnail(normalizedExtension, thumbnailPath);
+        }
+        break;
       case 'extractEmbeddedThumbnailOnly': {
         const success = normalizedExtension === 'kra'
           ? await this.extractKritaThumbnail(absolutePath, thumbnailPath)
@@ -238,6 +251,42 @@ class ImageLoader {
     const completedStats = await fse.stat(absolutePath);
     this.generatedSourceMtimes.set(fileId, completedStats.mtimeMs);
     return `${thumbnailPath}?v=${completedStats.mtimeMs}`;
+  }
+
+  private async generateCbzThumbnail(
+    absolutePath: string,
+    thumbnailPath: string,
+    fileId: string,
+    priority = 0,
+  ): Promise<void> {
+    const zip = new StreamZip.async({ file: absolutePath });
+    let temporaryCoverPath: string | undefined;
+    try {
+      const entries = await zip.entries();
+      const imageEntries = Object.values(entries)
+        .filter((entry) => entry.isFile && /\\.(png|jpe?g|webp|bmp|gif)$/i.test(entry.name))
+        .sort((a, b) => {
+          const priorityOf = (name: string) => /(^|\\/)(cover|front|folder)(\\.|$)/i.test(name) ? 0 : 1;
+          return priorityOf(a.name) - priorityOf(b.name) || a.name.localeCompare(b.name, undefined, { numeric: true });
+        });
+      const cover = imageEntries[0];
+      if (!cover) throw new Error('No image files found in CBZ archive');
+
+      const extension = path.extname(cover.name).slice(1).toLowerCase();
+      temporaryCoverPath = `${thumbnailPath}.cover.${extension}`;
+      const coverBuffer = await zip.entryData(cover.name);
+      await fse.outputFile(temporaryCoverPath, coverBuffer);
+      await generateThumbnailUsingWorker(
+        { id: `cbz-cover:${fileId}`, absolutePath: temporaryCoverPath, extension },
+        thumbnailPath,
+        true,
+        10000,
+        priority,
+      );
+    } finally {
+      await zip.close().catch(console.warn);
+      if (temporaryCoverPath) await fse.remove(temporaryCoverPath).catch(console.warn);
+    }
   }
 
   async ensurePreviewThumbnail(file: ClientFile, priority = 0): Promise<void> {
@@ -330,6 +379,16 @@ class ImageLoader {
         await generateThumbnail(this.exrLoader, absolutePath, thumbnailPath, thumbnailMaxSize);
         updateThumbnailPath(file, thumbnailPath);
         break;
+      case 'cbzArchive':
+        await this.generateCbzThumbnail(absolutePath, thumbnailPath, file.id, priority);
+        updateThumbnailPath(file, thumbnailPath);
+        break;
+      case 'osThumbnail':
+        if (!(await this.generateOsThumbnail(absolutePath, thumbnailPath))) {
+          await this.generatePlaceholderThumbnail(extension, thumbnailPath);
+        }
+        updateThumbnailPath(file, thumbnailPath);
+        break;
       case 'extractEmbeddedThumbnailOnly':
         let success = false;
         if (extension === 'kra') {
@@ -412,8 +471,10 @@ class ImageLoader {
           return src;
         }
         return undefined;
+      case 'cbzArchive':
+      case 'osThumbnail':
       case 'placeholder':
-        // The placeholder thumbnail is the full representation — reuse for slide/preview mode
+        // The placeholder/cover thumbnail is the full representation — reuse for slide/preview mode
         return file.thumbnailPath.split('?')[0];
       case 'none':
         return undefined;
@@ -430,7 +491,7 @@ class ImageLoader {
 
     // Non-visual files have no meaningful dimensions — return a fixed square
     // so the masonry layout renders a proper cell instead of a 0×0 ghost.
-    if (handler === 'placeholder') {
+    if (handler === 'placeholder' || handler === 'osThumbnail' || handler === 'cbzArchive') {
       return PLACEHOLDER_DIMENSIONS;
     }
 
