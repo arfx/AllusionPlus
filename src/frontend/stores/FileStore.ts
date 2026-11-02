@@ -1409,7 +1409,7 @@ class FileStore {
           const ignoreCase =
             isPathSearch || criterion.operator.toLowerCase().includes('ignorecase');
           const normalize = (text: string) =>
-            isPathSearch ? text.replace(/\\\\/g, '/').toLocaleLowerCase() : text.toLocaleLowerCase();
+            isPathSearch ? text.replace(/\\/g, '/').toLocaleLowerCase() : text.toLocaleLowerCase();
           const left = ignoreCase ? normalize(value) : value;
           const right = ignoreCase ? normalize(query) : query;
           switch (criterion.operator) {
