@@ -78,7 +78,11 @@ export class ClientFile {
   // Is undefined until existence check has been completed
   @observable isBroken?: boolean;
 
-  constructor(store: FileStore, fileProps: FileDTO) {
+  constructor(
+    store: FileStore,
+    fileProps: FileDTO,
+    options: { absolutePath?: string; autoSave?: boolean } = {},
+  ) {
     this.store = store;
 
     this.ino = fileProps.ino;
@@ -98,7 +102,7 @@ export class ClientFile {
     this.tagSorting = fileProps.tagSorting;
 
     const location = store.getLocation(this.locationId);
-    this.absolutePath = Path.join(location.path, this.relativePath);
+    this.absolutePath = options.absolutePath ?? Path.join(location.path, this.relativePath);
 
     const base = Path.basename(this.relativePath);
     this.filename = base.slice(0, base.lastIndexOf('.'));
@@ -107,6 +111,7 @@ export class ClientFile {
     this.extraProperties = observable(this.store.getExtraProperties(fileProps.extraProperties));
 
     // observe all changes to observable fields
+    this.autoSave = options.autoSave ?? true;
     this.saveHandler = reaction(
       // We need to explicitly define which values this reaction should react to
       () => this.serialize(),
