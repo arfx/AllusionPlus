@@ -6,6 +6,7 @@ import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
 import { encodeFilePath } from '../../../../../common/fs';
+import { ThumbnailRequestDeferredError } from '../../../image/ThumbnailGeneration';
 import { useStore } from '../../../contexts/StoreContext';
 import { ExplorerDirectoryEntry } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
@@ -342,14 +343,27 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
           batch.map(async (file) => {
             const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
             try {
-              const thumbnailPath = await imageLoader.ensureExplorerThumbnail(
-                file.path,
-                extension,
-                uiStore.thumbnailDirectory,
-                1,
-              );
-              if (!cancelled) {
-                setThumbnailPaths((previous) => ({ ...previous, [file.path]: thumbnailPath }));
+              let thumbnailPath: string | undefined;
+              for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
+                try {
+                  thumbnailPath = await imageLoader.ensureExplorerThumbnail(
+                    file.path,
+                    extension,
+                    uiStore.thumbnailDirectory,
+                    1,
+                  );
+                  break;
+                } catch (error) {
+                  if (!(error instanceof ThumbnailRequestDeferredError) || attempt === 3) {
+                    throw error;
+                  }
+                  // The shared Allusion worker queue is busy. Retry deferred
+                  // Explorer work instead of leaving a permanent loading tile.
+                  await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+                }
+              }
+              if (!cancelled && thumbnailPath) {
+                setThumbnailPaths((previous) => ({ ...previous, [file.path]: thumbnailPath! }));
               }
             } catch (error) {
               // A single unsupported or damaged file must not prevent other previews.
