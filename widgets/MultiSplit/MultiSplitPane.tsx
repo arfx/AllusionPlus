@@ -16,6 +16,7 @@ export type MultiSplitPaneProps = React.HTMLAttributes<HTMLDivElement> & {
   headerProps?: React.HTMLAttributes<HTMLDivElement>;
   headerToolbar?: ReactNode;
   className?: string;
+  onReorderPanel?: (sourceId: string, targetId: string) => void;
 };
 
 const ResizableCollapse = ({
@@ -33,7 +34,6 @@ const ResizableCollapse = ({
   useMutationObserver(
     ref,
     (mutations) => {
-      // Only set the height when the panel is not collapsed, so the height is restored as to how it was when expanded
       const heightStr = (mutations[0]?.target as HTMLDivElement).style.height.replace('px', '');
       const height = Number(heightStr) || 0;
       if (height !== 0) {
@@ -44,24 +44,16 @@ const ResizableCollapse = ({
     { attributes: true },
   );
 
-  // Set initial height on mount and after expanding
   useLayoutEffect(() => {
-    if (!ref.current) {
-      return;
-    }
+    if (!ref.current) return;
     const newHeight = isCollapsed ? '0px' : `${height ? `${height}px` : ''}`;
     ref.current.style.height = newHeight;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCollapsed]);
 
-  // Reset height when height is set to 0 (e.g. double clicking the header)
   useLayoutEffect(() => {
-    if (!ref.current) {
-      return;
-    }
-    if (height === 0) {
-      ref.current.style.height = '0px';
-    }
+    if (!ref.current) return;
+    if (height === 0) ref.current.style.height = '0px';
   }, [height]);
 
   return (
@@ -73,6 +65,7 @@ const ResizableCollapse = ({
 
 const MultiSplitPane: React.FC<MultiSplitPaneProps> = ({
   title,
+  id,
   isCollapsed,
   setCollapsed,
   height,
@@ -81,15 +74,45 @@ const MultiSplitPane: React.FC<MultiSplitPaneProps> = ({
   className,
   headerToolbar,
   headerProps,
+  onReorderPanel,
   ...props
 }) => {
   const ref = useRef<HTMLDivElement>(null);
+  const draggedPanelId = useRef<string | null>(null);
+
   return (
     <div className={`section ${className || ''}`} {...props} ref={ref}>
-      <header {...(headerProps || {})}>
+      <header
+        {...(headerProps || {})}
+        onDragOver={(event) => {
+          if (draggedPanelId.current || event.dataTransfer.types.includes('text/outliner-panel')) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+          }
+          headerProps?.onDragOver?.(event);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          const sourceId = event.dataTransfer.getData('text/outliner-panel');
+          if (sourceId && sourceId !== id) onReorderPanel?.(sourceId, id);
+          draggedPanelId.current = null;
+          headerProps?.onDrop?.(event);
+        }}
+      >
         <h2
+          draggable={!!onReorderPanel}
+          title={onReorderPanel ? 'Drag to reorder panels' : undefined}
+          onDragStart={(event) => {
+            draggedPanelId.current = id;
+            event.dataTransfer.setData('text/outliner-panel', id);
+            event.dataTransfer.effectAllowed = 'move';
+            event.currentTarget.closest('header')?.classList.add('panel-dragging');
+          }}
+          onDragEnd={(event) => {
+            draggedPanelId.current = null;
+            event.currentTarget.closest('header')?.classList.remove('panel-dragging');
+          }}
           onClick={() => setCollapsed?.(!isCollapsed)}
-          // Reset the height to grow with the content by double clicking
           onDoubleClick={() => setHeight?.(0)}
         >
           {title}
