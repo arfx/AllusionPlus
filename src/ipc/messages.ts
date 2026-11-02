@@ -30,6 +30,12 @@ export const OPEN_DIALOG = 'OPEN_DIALOG';
 export const MESSAGE_BOX = 'MESSAGE_BOX';
 export const MESSAGE_BOX_SYNC = 'MESSAGE_BOX_SYNC';
 export const GET_PATH = 'GET_PATH';
+export const EXPLORER_READ_DIRECTORY = 'EXPLORER_READ_DIRECTORY';
+export type ExplorerDirectoryEntry = {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+};
 export const TRASH_FILE = 'TRASH_FILE';
 export const GET_QUICKLOOK_THUMBNAIL = 'GET_QUICKLOOK_THUMBNAIL';
 export const COPY_FILES_TO_CLIPBOARD = 'COPY_FILES_TO_CLIPBOARD';
