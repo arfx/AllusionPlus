@@ -12,7 +12,7 @@ import PsdLoader from './PSDLoader';
 import { generateThumbnailUsingWorker, ThumbnailRequestDeferredError } from './ThumbnailGeneration';
 import TifLoader from './TifLoader';
 import { generateThumbnail, getBlob } from './util';
-import { isFileExtensionVideo } from 'common/fs';
+import { getThumbnailPath, isFileExtensionVideo } from 'common/fs';
 import { getPlaceholderStyle } from './placeholderStyle';
 import { RendererMessenger } from '../../ipc/renderer';
 
@@ -165,6 +165,79 @@ class ImageLoader {
       file.extension === 'gif' ||
       isFileExtensionVideo(file.extension)
     );
+  }
+
+  /**
+   * Generates or reuses a thumbnail for a filesystem file that is not registered
+   * in Allusion's database. It deliberately shares the same format handlers,
+   * decoders, worker pool and thumbnail cache as indexed ClientFiles.
+   */
+  async ensureExplorerThumbnail(
+    absolutePath: string,
+    extension: string,
+    thumbnailDirectory: string,
+    priority = 0,
+  ): Promise<string> {
+    const normalizedExtension = extension.toLowerCase();
+    const thumbnailPath = getThumbnailPath(absolutePath, thumbnailDirectory);
+    const fileId = `explorer:${absolutePath}`;
+    const sourceStats = await fse.stat(absolutePath);
+    const sourceMtime = sourceStats.mtimeMs;
+
+    if (await fse.pathExists(thumbnailPath)) {
+      const thumbnailStats = await fse.stat(thumbnailPath);
+      if (thumbnailStats.mtimeMs >= sourceMtime || sourceMtime > Date.now()) {
+        return thumbnailPath;
+      }
+    }
+    if (this.generatedSourceMtimes.get(fileId) === sourceMtime) {
+      return thumbnailPath;
+    }
+
+    const handlerType = getHandler(normalizedExtension);
+    switch (handlerType) {
+      case 'web':
+        try {
+          await generateThumbnailUsingWorker(
+            { id: fileId, absolutePath, extension: normalizedExtension },
+            thumbnailPath,
+            true,
+            10000,
+            priority,
+          );
+        } catch (error) {
+          if (error instanceof ThumbnailRequestDeferredError) throw error;
+          if (!(await this.generateOsThumbnail(absolutePath, thumbnailPath))) throw error;
+        }
+        break;
+      case 'tifLoader':
+        await generateThumbnail(this.tifLoader, absolutePath, thumbnailPath, thumbnailMaxSize);
+        break;
+      case 'exrLoader':
+        await generateThumbnail(this.exrLoader, absolutePath, thumbnailPath, thumbnailMaxSize);
+        break;
+      case 'psdLoader':
+        await generateThumbnail(this.psdLoader, absolutePath, thumbnailPath, thumbnailMaxSize);
+        break;
+      case 'extractEmbeddedThumbnailOnly': {
+        const success = normalizedExtension === 'kra'
+          ? await this.extractKritaThumbnail(absolutePath, thumbnailPath)
+          : await this.exifIO.extractThumbnail(absolutePath, thumbnailPath);
+        if (!success) throw new Error('Could not generate or extract thumbnail');
+        break;
+      }
+      case 'placeholder':
+        await this.generatePlaceholderThumbnail(normalizedExtension, thumbnailPath);
+        break;
+      case 'none':
+        return absolutePath;
+      default:
+        await this.generatePlaceholderThumbnail(normalizedExtension, thumbnailPath);
+    }
+
+    const completedStats = await fse.stat(absolutePath);
+    this.generatedSourceMtimes.set(fileId, completedStats.mtimeMs);
+    return thumbnailPath;
   }
 
   async ensurePreviewThumbnail(file: ClientFile, priority = 0): Promise<void> {
