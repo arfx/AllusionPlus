@@ -49,21 +49,21 @@ const FolderNode = ({
       <div
         className={`explorer-folder-row ${selectedPath === entry.path ? 'selected' : ''}`}
         style={{ paddingLeft: level * 14 }}
+        onMouseEnter={() => onPrime(entry)}
       >
-        {canExpand ? (
-          <button
-            type="button"
-            className="explorer-folder-toggle"
-            aria-label={isExpanded ? 'Collapse folder' : 'Expand folder'}
-            onMouseEnter={() => onPrime(entry)}
-            onFocus={() => onPrime(entry)}
-            onClick={() => onToggle(entry)}
-          >
-            {isExpanded ? '▾' : '▸'}
-          </button>
-        ) : (
-          <span className="explorer-folder-toggle-placeholder" />
-        )}
+        <span className="explorer-folder-toggle-slot">
+          {canExpand ? (
+            <button
+              type="button"
+              className="explorer-folder-toggle"
+              aria-label={isExpanded ? 'Collapse folder' : 'Expand folder'}
+              onFocus={() => onPrime(entry)}
+              onClick={() => onToggle(entry)}
+            >
+              {isExpanded ? '▾' : '▸'}
+            </button>
+          ) : null}
+        </span>
         <button
           type="button"
           className="explorer-folder-label"
@@ -117,13 +117,16 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     const path = uiStore.explorerCurrentDirectory;
     if (!path || path === EXPLORER_COMPUTER_ROOT) return;
     const folderName = path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path;
-    const name = window.prompt('Bookmark name', folderName);
-    if (name === null) return;
+    const bookmarks = getExplorerBookmarks();
+    if (bookmarks.some((bookmark) =>
+      bookmark.path.toLocaleLowerCase() === path.toLocaleLowerCase() &&
+      bookmark.includeSubfolders === includeSubfolders
+    )) return;
     saveExplorerBookmarks([
-      ...getExplorerBookmarks(),
+      ...bookmarks,
       {
         id: generateId(),
-        name: name.trim() || folderName,
+        name: folderName,
         path,
         includeSubfolders,
       },
@@ -308,6 +311,21 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     >
       <div className="explorer-browser">
         <aside className="explorer-folder-tree" aria-label="Folder tree">
+          <div className="explorer-folder-tree-scroll">
+            {folderTree.map((root) => (
+              <FolderNode
+                key={root.path}
+                entry={root}
+                level={0}
+                selectedPath={uiStore.explorerCurrentDirectory}
+                expandedPaths={expandedPaths}
+                directories={directories}
+                onSelect={selectDirectory}
+                onToggle={toggleFolder}
+                onPrime={primeFolder}
+              />
+            ))}
+          </div>
           <label className="explorer-recursive-toggle">
             <input
               type="checkbox"
@@ -319,19 +337,6 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             />
             Include subfolders
           </label>
-          {folderTree.map((root) => (
-            <FolderNode
-              key={root.path}
-              entry={root}
-              level={0}
-              selectedPath={uiStore.explorerCurrentDirectory}
-              expandedPaths={expandedPaths}
-              directories={directories}
-              onSelect={selectDirectory}
-              onToggle={toggleFolder}
-              onPrime={primeFolder}
-            />
-          ))}
         </aside>
       </div>
     </MultiSplitPane>
