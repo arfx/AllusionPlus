@@ -7,6 +7,8 @@ import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSpl
 import { useStore } from '../../../contexts/StoreContext';
 import { ExplorerDirectoryEntry, EXPLORER_COMPUTER_ROOT } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
+import { getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
+import { generateId } from '../../../../api/id';
 import './ExplorerPanel.scss';
 
 type DirectoryState = {
@@ -37,6 +39,7 @@ const FolderNode = ({
   const isExpanded = expandedPaths.has(entry.path);
   const directory = directories[entry.path];
   const children = directory?.entries.filter((item) => item.isDirectory) ?? [];
+  const canExpand = !directory || directory.loading || !!directory.error || children.length > 0;
 
   return (
     <div className="explorer-folder-node">
@@ -44,14 +47,18 @@ const FolderNode = ({
         className={`explorer-folder-row ${selectedPath === entry.path ? 'selected' : ''}`}
         style={{ paddingLeft: level * 14 }}
       >
-        <button
-          type="button"
-          className="explorer-folder-toggle"
-          aria-label={isExpanded ? 'Collapse folder' : 'Expand folder'}
-          onClick={() => onToggle(entry)}
-        >
-          {isExpanded ? '▾' : '▸'}
-        </button>
+        {canExpand ? (
+          <button
+            type="button"
+            className="explorer-folder-toggle"
+            aria-label={isExpanded ? 'Collapse folder' : 'Expand folder'}
+            onClick={() => onToggle(entry)}
+          >
+            {isExpanded ? '▾' : '▸'}
+          </button>
+        ) : (
+          <span className="explorer-folder-toggle-placeholder" />
+        )}
         <button
           type="button"
           className="explorer-folder-label"
@@ -97,6 +104,29 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const [includeSubfolders, setIncludeSubfolders] = useState(uiStore.explorerIncludeSubfolders);
   const [directoryRefreshVersion, setDirectoryRefreshVersion] = useState(0);
   const scanId = useRef(0);
+
+  useEffect(() => {
+    setIncludeSubfolders(uiStore.explorerIncludeSubfolders);
+  }, [uiStore.explorerIncludeSubfolders]);
+
+  const bookmarkCurrentFolder = useCallback(() => {
+    const path = uiStore.explorerCurrentDirectory;
+    if (!path || path === EXPLORER_COMPUTER_ROOT) return;
+    const bookmarks = getExplorerBookmarks();
+    if (bookmarks.some((bookmark) => bookmark.path.toLocaleLowerCase() === path.toLocaleLowerCase())) {
+      return;
+    }
+    const folderName = path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path;
+    saveExplorerBookmarks([
+      ...bookmarks,
+      {
+        id: generateId(),
+        name: folderName,
+        path,
+        includeSubfolders,
+      },
+    ]);
+  }, [includeSubfolders, uiStore]);
 
   const readDirectory = useCallback(async (absolutePath: string) => {
     setDirectories((previous) => ({
@@ -233,6 +263,13 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             onClick={chooseDirectory}
             disabled={isChoosingDirectory}
             tooltip="Browse without adding this folder as a Location"
+          />
+          <ToolbarButton
+            icon={IconSet.PLUS}
+            text="Bookmark folder"
+            onClick={bookmarkCurrentFolder}
+            disabled={!uiStore.explorerCurrentDirectory || uiStore.explorerCurrentDirectory === EXPLORER_COMPUTER_ROOT}
+            tooltip="Save the current folder in Saved Searches"
           />
         </Toolbar>
       }
