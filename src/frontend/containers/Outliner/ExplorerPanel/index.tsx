@@ -5,6 +5,7 @@ import { IconSet } from 'widgets/icons';
 import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
+import { encodeFilePath } from '../../../../../common/fs';
 import { useStore } from '../../../contexts/StoreContext';
 import { ExplorerDirectoryEntry } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
@@ -439,7 +440,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
           <div className="explorer-image-grid">
             {imageFiles.map((file) => (
               <div className="explorer-image-item" key={file.path} title={file.path}>
-                {thumbnailPaths[file.path] ? (\n                  <img src={thumbnailPaths[file.path]} alt={file.name} loading="lazy" />\n                ) : (\n                  <div className="explorer-thumbnail-loading">Generating preview…</div>\n                )}
+                {thumbnailPaths[file.path] ? (\n                  <img src={encodeFilePath(thumbnailPaths[file.path])} alt={file.name} loading="lazy" />\n                ) : (\n                  <div className="explorer-thumbnail-loading">Generating preview…</div>\n                )}
                 <span>{file.name}</span>
               </div>
             ))}
