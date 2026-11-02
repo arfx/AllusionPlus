@@ -176,7 +176,9 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
 
   const primeFolder = useCallback((entry: ExplorerDirectoryEntry) => {
     const cached = directories[entry.path];
-    if (!cached || cached.error) void readDirectory(entry.path);
+    if (!cached || cached.error || cached.loading) {
+      void readDirectory(entry.path);
+    }
   }, [directories, readDirectory]);
 
   const chooseDirectory = useCallback(async () => {
