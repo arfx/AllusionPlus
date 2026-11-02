@@ -8,13 +8,12 @@ import SavedSearchesPanel from './SavedSearchesPanel';
 import TagsPanel, { OutlinerActionBar } from './TagsPanel';
 import FileEditorsPanel from './FileEditorsPanel';
 
-type OutlinerPanelId = 'locations' | 'explorer' | 'tags' | 'fileEditors' | 'savedSearches';
+type OutlinerPanelId = 'locations' | 'explorer' | 'tags' | 'saved-searches';
 const DEFAULT_PANEL_ORDER: OutlinerPanelId[] = [
   'locations',
   'explorer',
   'tags',
-  'fileEditors',
-  'savedSearches',
+  'saved-searches',
 ];
 const PANEL_ORDER_STORAGE_KEY = 'allusion-outliner-panel-order';
 
@@ -41,8 +40,12 @@ const Outliner = () => {
 
   const reorderPanel = useCallback((sourceId: string, targetId: string) => {
     setPanelOrder((current) => {
-      if (!current.includes(sourceId as OutlinerPanelId) ||
-          !current.includes(targetId as OutlinerPanelId)) return current;
+      if (
+        !current.includes(sourceId as OutlinerPanelId) ||
+        !current.includes(targetId as OutlinerPanelId)
+      ) {
+        return current;
+      }
       const next = current.filter((id) => id !== sourceId);
       const targetIndex = next.indexOf(targetId as OutlinerPanelId);
       next.splice(targetIndex, 0, sourceId as OutlinerPanelId);
@@ -55,8 +58,7 @@ const Outliner = () => {
     locations: <LocationsPanel key="locations" />,
     explorer: <ExplorerPanel key="explorer" />,
     tags: <TagsPanel key="tags" />,
-    fileEditors: <FileEditorsPanel key="fileEditors" />,
-    savedSearches: <SavedSearchesPanel key="savedSearches" />,
+    'saved-searches': <SavedSearchesPanel key="saved-searches" />,
   };
 
   return (
@@ -73,6 +75,7 @@ const Outliner = () => {
           onReorderPanel={reorderPanel}
         >
           {panelOrder.map((id) => panels[id])}
+          <FileEditorsPanel />
         </MultiSplit>
       </div>
       <OutlinerActionBar />
