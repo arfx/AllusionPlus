@@ -247,29 +247,32 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         const entries = await RendererMessenger.explorerReadDirectory(selectedDirectory);
         files.push(...entries.filter((entry) => !entry.isDirectory).map((entry) => entry.path));
       } else {
+        // Process the queue until it is truly exhausted. The previous worker
+        // implementation could let every worker exit while another directory
+        // read was still in flight, leaving newly discovered folders unscanned.
         const queue = [selectedDirectory];
         const visited = new Set<string>();
         let queueIndex = 0;
-        const worker = async () => {
-          while (!cancelled && scanId.current === currentScan) {
-            const directory = queue[queueIndex++];
-            if (!directory) return;
-            if (visited.has(directory)) continue;
-            visited.add(directory);
-            try {
-              const entries = await RendererMessenger.explorerReadDirectory(directory);
-              if (cancelled || scanId.current !== currentScan) return;
-              entries.forEach((entry) => {
-                if (entry.isDirectory) queue.push(entry.path);
-                else files.push(entry.path);
-              });
-            } catch (error) {
-              console.warn('Could not scan Explorer directory', directory, error);
-            }
+
+        while (queueIndex < queue.length && !cancelled && scanId.current === currentScan) {
+          const directory = queue[queueIndex++];
+          if (!directory || visited.has(directory)) continue;
+          visited.add(directory);
+
+          try {
+            const entries = await RendererMessenger.explorerReadDirectory(directory);
+            if (cancelled || scanId.current !== currentScan) return;
+            entries.forEach((entry) => {
+              if (entry.isDirectory) {
+                if (!visited.has(entry.path)) queue.push(entry.path);
+              } else {
+                files.push(entry.path);
+              }
+            });
+          } catch (error) {
+            console.warn('Could not scan Explorer directory', directory, error);
           }
-        };
-        await Promise.all(Array.from({ length: 4 }, () => worker()));
-      }
+        }
       if (!cancelled && scanId.current === currentScan) {
         await fileStore.setExplorerFiles(files);
       }
