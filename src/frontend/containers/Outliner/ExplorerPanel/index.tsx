@@ -102,6 +102,7 @@ const FolderNode = ({
 const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const { uiStore, fileStore } = useStore();
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
+  const pendingDirectoryReads = useRef(new Map<string, Promise<ExplorerDirectoryEntry[]>>());
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
   const [includeSubfolders, setIncludeSubfolders] = useState(uiStore.explorerIncludeSubfolders);
@@ -131,24 +132,41 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     ]);
   }, [includeSubfolders, uiStore]);
 
-  const readDirectory = useCallback(async (absolutePath: string) => {
+  const readDirectory = useCallback((absolutePath: string): Promise<ExplorerDirectoryEntry[]> => {
+    const pending = pendingDirectoryReads.current.get(absolutePath);
+    if (pending) return pending;
+
     setDirectories((previous) => ({
       ...previous,
       [absolutePath]: { ...previous[absolutePath], entries: previous[absolutePath]?.entries ?? [], loading: true },
     }));
-    try {
-      const entries = await RendererMessenger.explorerReadDirectory(absolutePath);
-      setDirectories((previous) => ({
-        ...previous,
-        [absolutePath]: { entries, loading: false, hasSubfolders: entries.some((entry) => entry.isDirectory) },
-      }));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setDirectories((previous) => ({
-        ...previous,
-        [absolutePath]: { entries: [], loading: false, hasSubfolders: false, error: message },
-      }));
-    }
+
+    const request = RendererMessenger.explorerReadDirectory(absolutePath)
+      .then((entries) => {
+        setDirectories((previous) => ({
+          ...previous,
+          [absolutePath]: {
+            entries,
+            loading: false,
+            hasSubfolders: entries.some((entry) => entry.isDirectory),
+          },
+        }));
+        return entries;
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        setDirectories((previous) => ({
+          ...previous,
+          [absolutePath]: { entries: [], loading: false, hasSubfolders: false, error: message },
+        }));
+        return [];
+      })
+      .finally(() => {
+        pendingDirectoryReads.current.delete(absolutePath);
+      });
+
+    pendingDirectoryReads.current.set(absolutePath, request);
+    return request;
   }, []);
 
   useEffect(() => {
