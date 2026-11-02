@@ -212,7 +212,6 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
 
   const toggleFolder = useCallback(
     async (entry: ExplorerDirectoryEntry) => {
-      const cachedDirectory = directories[entry.path];
       if (expandedPaths.has(entry.path)) {
         setExpandedPaths((previous) => {
           const next = new Set(previous);
@@ -222,15 +221,8 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         return;
       }
 
-      const directory = cachedDirectory;
-      const entries = directory && !directory.loading && !directory.error
-        ? directory.entries
-        : await readDirectory(entry.path);
+      const entries = await readDirectory(entry.path);
       const hasSubfolders = entries.some((item) => item.isDirectory);
-      setDirectories((previous) => ({
-        ...previous,
-        [entry.path]: { entries, loading: false, hasSubfolders },
-      }));
       if (hasSubfolders) {
         setExpandedPaths((previous) => new Set(previous).add(entry.path));
       } else {
