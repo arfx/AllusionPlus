@@ -48,11 +48,16 @@
   gap: 6px;
   flex: 1;
   min-width: 0;
-  text-align: left;
+  text-align: left !important;
+  justify-content: flex-start;
   padding: 5px 2px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+ .explorer-folder-label > span {
+  text-align: left !important;
 }
 
 .explorer-folder-label span:last-child {
