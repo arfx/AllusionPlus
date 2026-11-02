@@ -191,7 +191,7 @@ class ImageLoader {
     if (await fse.pathExists(thumbnailPath)) {
       const thumbnailStats = await fse.stat(thumbnailPath);
       if (thumbnailStats.mtimeMs >= sourceMtime || sourceMtime > Date.now()) {
-        return thumbnailPath;
+        return `${thumbnailPath}?v=${sourceMtime}`;
       }
     }
     const handlerType = getHandler(normalizedExtension);
@@ -237,7 +237,7 @@ class ImageLoader {
 
     const completedStats = await fse.stat(absolutePath);
     this.generatedSourceMtimes.set(fileId, completedStats.mtimeMs);
-    return thumbnailPath;
+    return `${thumbnailPath}?v=${completedStats.mtimeMs}`;
   }
 
   async ensurePreviewThumbnail(file: ClientFile, priority = 0): Promise<void> {
