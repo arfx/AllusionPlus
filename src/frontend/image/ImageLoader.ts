@@ -225,7 +225,12 @@ class ImageLoader {
         await generateThumbnail(this.psdLoader, absolutePath, thumbnailPath, thumbnailMaxSize);
         break;
       case 'cbzArchive':
-        await this.generateCbzThumbnail(absolutePath, thumbnailPath, fileId, priority);
+        try {
+          await this.generateCbzThumbnail(absolutePath, thumbnailPath, fileId, priority);
+        } catch (error) {
+          if (error instanceof ThumbnailRequestDeferredError) throw error;
+          await this.generatePlaceholderThumbnail(normalizedExtension, thumbnailPath);
+        }
         break;
       case 'osThumbnail':
         if (!(await this.generateOsThumbnail(absolutePath, thumbnailPath))) {
@@ -380,7 +385,12 @@ class ImageLoader {
         updateThumbnailPath(file, thumbnailPath);
         break;
       case 'cbzArchive':
-        await this.generateCbzThumbnail(absolutePath, thumbnailPath, file.id, priority);
+        try {
+          await this.generateCbzThumbnail(absolutePath, thumbnailPath, file.id, priority);
+        } catch (error) {
+          if (error instanceof ThumbnailRequestDeferredError) throw error;
+          await this.generatePlaceholderThumbnail(extension, thumbnailPath);
+        }
         updateThumbnailPath(file, thumbnailPath);
         break;
       case 'osThumbnail':
