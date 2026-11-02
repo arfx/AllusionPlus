@@ -127,9 +127,8 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number, defe
 };
 
 /**
- * Generates a thumbnail in a Worker: {@link ../workers/thumbnailGenerator.worker}
- * When the worker is finished, the file.thumbnailPath will be updated with ?v=1,
- * causing the image to update in the view where ever it is used
+ * Generates a thumbnail in a Worker: {@link ../workers/thumbnailGenerator.worker}.
+ * The caller owns updating its thumbnail path after generation completes.
  **/
 export const generateThumbnailUsingWorker = action(
   async (
