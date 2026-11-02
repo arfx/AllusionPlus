@@ -1403,12 +1403,15 @@ class FileStore {
               : '',
           );
           const query = criterion.value;
-          const left = criterion.operator.toLowerCase().includes('ignorecase')
-            ? value.toLocaleLowerCase()
-            : value;
-          const right = criterion.operator.toLowerCase().includes('ignorecase')
-            ? query.toLocaleLowerCase()
-            : query;
+          // Path searches should behave like Everything: case-insensitive and
+          // tolerant of slash direction, including paths inside scanned subfolders.
+          const isPathSearch = criterion.key === 'absolutePath';
+          const ignoreCase =
+            isPathSearch || criterion.operator.toLowerCase().includes('ignorecase');
+          const normalize = (text: string) =>
+            isPathSearch ? text.replace(/\\\\/g, '/').toLocaleLowerCase() : text.toLocaleLowerCase();
+          const left = ignoreCase ? normalize(value) : value;
+          const right = ignoreCase ? normalize(query) : query;
           switch (criterion.operator) {
             case 'equals':
             case 'equalsIgnoreCase':
