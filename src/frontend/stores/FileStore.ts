@@ -14,9 +14,10 @@ import {
   PaginationDirection,
 } from '../../api/data-storage-search';
 import { FileDTO, IMG_EXTENSIONS_TYPE } from '../../api/file';
+import { generateId } from '../../api/id';
 import { ID } from '../../api/id';
 import { AppToaster, IToastProps } from '../components/Toaster';
-import { ClientFile, mergeMovedFile } from '../entities/File';
+import { ClientFile, getMetaData, mergeMovedFile } from '../entities/File';
 import { ClientLocation } from '../entities/Location';
 import {
   ClientFileSearchCriteria,
@@ -108,6 +109,7 @@ class FileStore {
   isTaggingWithService: boolean = false;
   /** The origin of the current files that are shown */
   @observable private content: Content = Content.All;
+  @observable isExplorerMode: boolean = false;
   @observable orderDirection: OrderDirection = OrderDirection.Desc;
   @observable orderBy: OrderBy<FileDTO> = 'dateAdded';
   @observable isNaturalOrderingEnabled: boolean = false;
@@ -671,6 +673,7 @@ class FileStore {
   }
 
   @action private setContent(content: Content): void {
+    this.isExplorerMode = false;
     this.content = content;
     if (this.rootStore.uiStore.isSlideMode) {
       this.rootStore.uiStore.disableSlideMode();
@@ -962,6 +965,7 @@ class FileStore {
   }
 
   @action.bound async refetch(): Promise<void> {
+    if (this.isExplorerMode) return;
     if (this.showsAllContent) {
       return this.fetchAllFiles();
     } else if (this.showsUntaggedContent) {
@@ -1277,6 +1281,69 @@ class FileStore {
       throw new Error('Invalid Database State: Cannot have less than 0 untagged files.');
     }
     this.numUntaggedFiles--;
+  }
+
+  /**
+   * Displays filesystem files in the normal gallery without registering them in
+   * the database or associating them with a watched Location.
+   */
+  @action.bound async setExplorerFiles(paths: string[]): Promise<void> {
+    this.isExplorerMode = true;
+    const taskId = await this.newFetchTaskId();
+    const files: ClientFile[] = [];
+    for (const absolutePath of paths) {
+      if (taskId !== this.fetchTaskIdPair[0]) return;
+      try {
+        const stats = await fse.stat(absolutePath);
+        if (!stats.isFile()) continue;
+        const fileStats = {
+          absolutePath,
+          dateCreated: stats.birthtime,
+          dateModified: stats.mtime,
+          size: Number(stats.size),
+          ino: stats.ino.toString(),
+        };
+        const metadata = await getMetaData(fileStats, this.rootStore.imageLoader);
+        const now = new Date();
+        const fileDTO: FileDTO = {
+          id: generateId(),
+          ino: fileStats.ino,
+          locationId: '',
+          relativePath: absolutePath,
+          absolutePath,
+          tags: [],
+          tagSorting: 'insertion',
+          extraProperties: {},
+          dateAdded: now,
+          dateModified: now,
+          dateModifiedOS: stats.mtime,
+          dateLastIndexed: now,
+          name: metadata.name,
+          extension: metadata.extension,
+          size: metadata.size,
+          width: metadata.width || 100,
+          height: metadata.height || 100,
+          dateCreated: metadata.dateCreated,
+        };
+        const file = new ClientFile(this, fileDTO, { absolutePath, autoSave: false });
+        const thumbnailPath = getThumbnailPath(absolutePath, this.rootStore.uiStore.thumbnailDirectory);
+        file.setThumbnailPath(thumbnailPath);
+        files.push(file);
+      } catch (error) {
+        console.warn('Could not prepare Explorer file for gallery', absolutePath, error);
+      }
+    }
+    if (taskId !== this.fetchTaskIdPair[0]) {
+      files.forEach((file) => file.dispose());
+      return;
+    }
+    runInAction(() => {
+      this.clearFileList();
+      this.replaceFileList(files);
+      this.fileListLastRefetch = new Date();
+      this.numFilteredFiles = files.length;
+    });
+    this.rootStore.uiStore.clearFileSelection();
   }
 
   // Removes all items from fileList
