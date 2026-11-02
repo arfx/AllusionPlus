@@ -102,6 +102,7 @@ const FolderNode = ({
 const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const { uiStore, fileStore } = useStore();
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
+  const pendingDirectoryReads = useRef(new Set<string>());
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
   const [includeSubfolders, setIncludeSubfolders] = useState(uiStore.explorerIncludeSubfolders);
@@ -132,6 +133,8 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   }, [includeSubfolders, uiStore]);
 
   const readDirectory = useCallback(async (absolutePath: string) => {
+    if (pendingDirectoryReads.current.has(absolutePath)) return;
+    pendingDirectoryReads.current.add(absolutePath);
     setDirectories((previous) => ({
       ...previous,
       [absolutePath]: { ...previous[absolutePath], entries: previous[absolutePath]?.entries ?? [], loading: true },
@@ -148,6 +151,8 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         ...previous,
         [absolutePath]: { entries: [], loading: false, hasSubfolders: false, error: message },
       }));
+    } finally {
+      pendingDirectoryReads.current.delete(absolutePath);
     }
   }, []);
 
@@ -208,6 +213,14 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       setExpandedPaths((previous) => new Set(previous).add(entry.path));
       if (!directories[entry.path] || directories[entry.path].error) {
         await readDirectory(entry.path);
+        const loaded = await RendererMessenger.explorerReadDirectory(entry.path).catch(() => []);
+        if (!loaded.some((item) => item.isDirectory)) {
+          setExpandedPaths((previous) => {
+            const next = new Set(previous);
+            next.delete(entry.path);
+            return next;
+          });
+        }
       }
     },
     [directories, expandedPaths, readDirectory],
