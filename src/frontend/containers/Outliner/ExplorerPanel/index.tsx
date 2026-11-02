@@ -67,7 +67,15 @@ const FolderNode = ({
       {isExpanded && (
         <div className="explorer-folder-children">
           {directory?.loading && <div className="explorer-tree-message">Loading…</div>}
-          {directory?.error && <div className="explorer-tree-message error">{directory.error}</div>}
+          {directory?.error && (
+            <button
+              type="button"
+              className="explorer-tree-message error"
+              onClick={() => onToggle(entry)}
+            >
+              Could not read folder. Retry
+            </button>
+          )}
           {children.map((child) => (
             <FolderNode
               key={child.path}
@@ -175,7 +183,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const selectDirectory = useCallback(
     (absolutePath: string) => {
       setCurrentDirectory(absolutePath);
-      if (!directories[absolutePath]) {
+      if (!directories[absolutePath] || directories[absolutePath].error) {
         void readDirectory(absolutePath);
       }
     },
@@ -194,7 +202,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       }
 
       setExpandedPaths((previous) => new Set(previous).add(entry.path));
-      if (!directories[entry.path]) {
+      if (!directories[entry.path] || directories[entry.path].error) {
         await readDirectory(entry.path);
       }
     },
