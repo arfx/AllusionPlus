@@ -4,7 +4,6 @@ import { IconSet } from 'widgets/icons';
 import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
-import { IMG_EXTENSIONS } from '../../../../api/file';
 import { encodeFilePath } from '../../../../../common/fs';
 import { ExplorerDirectoryEntry } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
@@ -259,7 +258,7 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
   );
 
   const imageExtensions = useMemo(
-    () => new Set<string>(IMG_EXTENSIONS),
+    () => new Set(['gif', 'png', 'apng', 'jpg', 'jpeg', 'jfif', 'webp', 'avif', 'bmp', 'ico', 'svg']),
     [],
   );
 
