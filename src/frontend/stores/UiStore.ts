@@ -1645,7 +1645,7 @@ class UiStore {
     } else if (matches(hotkeyMap.viewGrid)) {
       this.setMethodGrid();
     } else if (matches(hotkeyMap.refreshRandomOrder)) {
-      if (this.rootStore.fileStore.orderBy === 'random') this.rootStore.fileStore.refetch();
+      if (this.rootStore.fileStore.orderBy === 'random') this.rootStore.fileStore.orderFilesBy('random');
     } else if (matches(hotkeyMap.newRandomOrder)) {
       this.newRandomOrder();
     } else if (matches(hotkeyMap.viewMasonryVertical)) {
