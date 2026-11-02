@@ -90,6 +90,10 @@ export const IMG_EXTENSIONS = [
   'wma',
   // 3D / Project files — placeholder thumbnail
   'blend',
+  // Document and comic-book formats with OS/embedded cover thumbnail support
+  'pdf',
+  'cbz',
+  'cbr',
 ] as const;
 
 /** Union type of all extensions Allusion has explicit rendering support for. */
