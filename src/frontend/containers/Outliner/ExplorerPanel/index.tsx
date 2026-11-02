@@ -42,7 +42,7 @@ const FolderNode = ({
     <div className="explorer-folder-node">
       <div
         className={`explorer-folder-row ${selectedPath === entry.path ? 'selected' : ''}`}
-        style={{ paddingLeft: 8 + level * 16 }}
+        style={{ paddingLeft: level * 14 }}
       >
         <button
           type="button"
