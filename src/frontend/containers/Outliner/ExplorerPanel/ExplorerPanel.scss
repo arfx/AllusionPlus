@@ -6,30 +6,10 @@
 }
 
 .explorer-folder-tree {
-  flex: 0 0 42%;
-  min-width: 120px;
-  max-width: 320px;
-  overflow: auto;
-  border-right: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
-  padding: 4px 0;
-}
-
-.explorer-folder-content {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: auto;
-  padding: 8px;
-}
-
-.explorer-current-path {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 4px 6px 8px;
-  opacity: 0.75;
-  font-size: 0.9em;
-  border-bottom: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
-  margin-bottom: 6px;
+  padding: 4px 0;
 }
 
 .explorer-folder-row {
@@ -82,8 +62,7 @@
   background: var(--hover-background, rgba(128, 128, 128, 0.12));
 }
 
-.explorer-folder-icon,
-.explorer-file-icon {
+.explorer-folder-icon {
   flex: 0 0 auto;
   opacity: 0.8;
 }
@@ -96,97 +75,4 @@
 
 .explorer-tree-message.error {
   color: var(--error-color, #d66);
-}
-
-.explorer-file-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.explorer-file-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 26px;
-  padding: 2px 6px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.explorer-file-list li:hover {
-  background: var(--hover-background, rgba(128, 128, 128, 0.12));
-}
-
-.explorer-recursive-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px 8px;
-  font-size: 0.9em;
-}
-
-.explorer-recursive-toggle input {
-  margin: 0;
-}
-
-.explorer-scan-status {
-  padding: 6px;
-  opacity: 0.7;
-  font-size: 0.85em;
-}
-
-.explorer-image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-  padding: 6px 0 12px;
-}
-
-.explorer-image-item {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 4px;
-  font-size: 0.85em;
-}
-
-.explorer-image-item img {
-  display: block;
-  width: 100%;
-  height: 112px;
-  object-fit: contain;
-  background: rgba(128, 128, 128, 0.08);
-}
-
-.explorer-image-item span {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.explorer-thumbnail-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 112px;
-  background: rgba(128, 128, 128, 0.08);
-  opacity: 0.6;
-  font-size: 0.8em;
-}
-
-.explorer-load-more {
-  display: block;
-  margin: 8px auto 16px;
-  padding: 6px 14px;
-  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.3));
-  border-radius: 4px;
-  color: inherit;
-  background: var(--button-background, transparent);
-  cursor: pointer;
-}
-
-.explorer-load-more:hover {
-  background: var(--hover-background, rgba(128, 128, 128, 0.12));
 }
