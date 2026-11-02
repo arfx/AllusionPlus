@@ -1339,9 +1339,7 @@ class FileStore {
         },
       ),
       4,
-      undefined,
-      () => taskId !== this.fetchTaskIdPair[0],
-    ).catch(() => []);
+    );
     const files = preparedFiles.filter((file): file is ClientFile => file !== undefined);
     if (taskId !== this.fetchTaskIdPair[0]) {
       files.forEach((file) => file.dispose());
