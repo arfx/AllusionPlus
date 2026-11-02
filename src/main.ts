@@ -25,7 +25,7 @@ import { createBugReport, githubUrl } from '../common/config';
 import { IS_DEV, IS_MAC } from '../common/process';
 import { TagDTO, ROOT_TAG_ID } from './api/tag';
 import { MainMessenger } from './ipc/main';
-import { WindowSystemButtonPress } from './ipc/messages';
+import { WindowSystemButtonPress, ExplorerDirectoryEntry } from './ipc/messages';
 
 // sets the userData path to the executables directory if the installation is portable
 const portablePath = process.env.PORTABLE_EXECUTABLE_DIR as string;
