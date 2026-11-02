@@ -475,7 +475,15 @@ const FolderBookmarks = observer(() => {
                 <Menu>
                   <MenuItem text="Open folder" onClick={() => openBookmark(bookmark)} icon={IconSet.FOLDER_CLOSE} />
                   <MenuItem text="Edit bookmark" onClick={() => setEditingBookmark(bookmark)} icon={IconSet.EDIT} />
-                  <MenuItem text="Remove bookmark" onClick={() => saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id))} icon={IconSet.DELETE} />
+                  <MenuItem
+                    text="Remove bookmark"
+                    onClick={() => {
+                      if (window.confirm(`Remove folder bookmark "${bookmark.name}"?`)) {
+                        saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id));
+                      }
+                    }}
+                    icon={IconSet.DELETE}
+                  />
                 </Menu>,
               );
             }}
