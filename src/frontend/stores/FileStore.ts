@@ -1372,9 +1372,7 @@ class FileStore {
       criteria.every((criterion) => {
         if (criterion instanceof ClientStringSearchCriteria) {
           const value = String(
-            criterion.key === 'filename'
-              ? file.filename
-              : criterion.key === 'name'
+            criterion.key === 'name'
               ? file.name
               : criterion.key === 'absolutePath'
               ? file.absolutePath
@@ -1412,7 +1410,7 @@ class FileStore {
           const matches = tag
             ? Array.from(file.tags).some((fileTag) =>
                 criterion.operator.toLowerCase().includes('recursively')
-                  ? tag.getImpliedSubTree().includes(fileTag)
+                  ? Array.from(tag.getImpliedSubTree()).includes(fileTag)
                   : fileTag === tag,
               )
             : file.tags.size === 0;
@@ -1424,7 +1422,9 @@ class FileStore {
 
     const direction = this.orderDirection === OrderDirection.Asc ? 1 : -1;
     const property = this.orderBy;
-    files = files.slice().sort((a, b) => {
+    if (property === 'random') {
+      files = files.slice().sort(() => Math.random() - 0.5);
+    } else files = files.slice().sort((a, b) => {
       let av: unknown;
       let bv: unknown;
       if (property === 'extraProperty') {
