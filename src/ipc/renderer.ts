@@ -8,6 +8,8 @@ import {
   DRAG_EXPORT,
   FULL_SCREEN_CHANGED,
   GET_PATH,
+  EXPLORER_READ_DIRECTORY,
+  ExplorerDirectoryEntry,
   GET_TAGS,
   GET_VERSION,
   GET_ZOOM_FACTOR,
@@ -83,6 +85,9 @@ export class RendererMessenger {
     ipcRenderer.invoke(MESSAGE_BOX_SYNC, options);
 
   static getPath = (name: SYSTEM_PATHS): Promise<string> => ipcRenderer.invoke(GET_PATH, name);
+
+  static explorerReadDirectory = (absolutePath: string): Promise<ExplorerDirectoryEntry[]> =>
+    ipcRenderer.invoke(EXPLORER_READ_DIRECTORY, absolutePath);
 
   static trashFile = (absolutePath: string): Promise<Error | undefined> =>
     ipcRenderer.invoke(TRASH_FILE, absolutePath);
