@@ -845,6 +845,26 @@ MainMessenger.onMessageBoxSync(dialog);
 MainMessenger.onGetPath((path) => app.getPath(path));
 
 MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
+  if (absolutePath === '::allusion-explorer-computer::') {
+    if (process.platform === 'win32') {
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+      const roots = await Promise.all(
+        letters.map(async (letter) => {
+          const drivePath = `${letter}:\\\\`;
+          try {
+            const stats = await fse.stat(drivePath);
+            return stats.isDirectory()
+              ? { name: drivePath, path: drivePath, isDirectory: true }
+              : undefined;
+          } catch {
+            return undefined;
+          }
+        }),
+      );
+      return roots.filter((entry): entry is ExplorerDirectoryEntry => entry !== undefined);
+    }
+    return [{ name: '/', path: '/', isDirectory: true }];
+  }
   if (typeof absolutePath !== 'string' || absolutePath.length === 0 || !path.isAbsolute(absolutePath)) {
     throw new Error('Explorer requires an absolute directory path.');
   }
