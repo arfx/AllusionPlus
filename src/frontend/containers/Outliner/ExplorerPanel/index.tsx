@@ -116,16 +116,14 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const bookmarkCurrentFolder = useCallback(() => {
     const path = uiStore.explorerCurrentDirectory;
     if (!path || path === EXPLORER_COMPUTER_ROOT) return;
-    const bookmarks = getExplorerBookmarks();
-    if (bookmarks.some((bookmark) => bookmark.path.toLocaleLowerCase() === path.toLocaleLowerCase())) {
-      return;
-    }
     const folderName = path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path;
+    const name = window.prompt('Bookmark name', folderName);
+    if (name === null) return;
     saveExplorerBookmarks([
-      ...bookmarks,
+      ...getExplorerBookmarks(),
       {
         id: generateId(),
-        name: folderName,
+        name: name.trim() || folderName,
         path,
         includeSubfolders,
       },
