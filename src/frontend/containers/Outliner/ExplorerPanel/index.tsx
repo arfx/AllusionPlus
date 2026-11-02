@@ -130,14 +130,16 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         properties: ['openDirectory'],
       });
       if (!result.canceled && result.filePaths.length > 0) {
-        selectDirectory(result.filePaths[0]);
+        uiStore.setExplorerCurrentDirectory(result.filePaths[0]);
+        setDirectoryRefreshVersion((version) => version + 1);
+        void readDirectory(result.filePaths[0]);
       }
     } catch (error) {
       console.error('Could not choose Explorer directory', error);
     } finally {
       setIsChoosingDirectory(false);
     }
-  }, [selectDirectory]);
+  }, [readDirectory, uiStore]);
 
   const selectDirectory = useCallback(
     (absolutePath: string) => {
