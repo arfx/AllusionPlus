@@ -296,6 +296,25 @@ export const Thumbnail = observer(
       }
     }, [displaySrc, fileId]);
 
+    // Cached images can already be complete by the time React attaches onLoad.
+    // Check the actual media element as a fallback so the overlay cannot remain
+    // visible after the browser has decoded the current source.
+    useEffect(() => {
+      if (!mounted) return;
+
+      if (useVideo) {
+        if (videoRef.current && videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          handleLoad();
+        }
+        return;
+      }
+
+      const image = thumbnailRef.current;
+      if (image?.complete && image.naturalWidth > 0) {
+        handleLoad();
+      }
+    }, [displaySrc, fileId, handleLoad, mounted, useVideo]);
+
     const props = useMemo(() => {
       const props = {
         src: encodeFilePath(displaySrc),
