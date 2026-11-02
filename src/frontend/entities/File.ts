@@ -101,8 +101,7 @@ export class ClientFile {
     this.extension = fileProps.extension;
     this.tagSorting = fileProps.tagSorting;
 
-    const location = store.getLocation(this.locationId);
-    this.absolutePath = options.absolutePath ?? Path.join(location.path, this.relativePath);
+    this.absolutePath = options.absolutePath ?? Path.join(store.getLocation(this.locationId).path, this.relativePath);
 
     const base = Path.basename(this.relativePath);
     this.filename = base.slice(0, base.lastIndexOf('.'));
