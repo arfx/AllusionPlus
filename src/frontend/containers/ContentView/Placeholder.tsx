@@ -8,6 +8,9 @@ import { useStore } from '../../contexts/StoreContext';
 const Placeholder = observer(() => {
   const { fileStore, tagStore } = useStore();
 
+  if (fileStore.isExplorerMode) {
+    return <NoExplorerContent />;
+  }
   if (IS_PREVIEW_WINDOW) {
     return <PreviewWindowPlaceholder />;
   }
@@ -100,6 +103,12 @@ const Welcome = () => {
     </ContentPlaceholder>
   );
 };
+
+const NoExplorerContent = () => (
+  <ContentPlaceholder title="No images in this folder" icon={IconSet.MEDIA}>
+    <p>Select another folder in Explorer or enable “Include subfolders”.</p>
+  </ContentPlaceholder>
+);
 
 const NoContentFound = () => {
   const { uiStore } = useStore();
