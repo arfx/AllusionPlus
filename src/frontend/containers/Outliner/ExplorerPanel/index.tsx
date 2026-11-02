@@ -446,7 +446,11 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
           <div className="explorer-image-grid">
             {imageFiles.map((file) => (
               <div className="explorer-image-item" key={file.path} title={file.path}>
-                {thumbnailPaths[file.path] ? (\n                  <img src={encodeFilePath(thumbnailPaths[file.path])} alt={file.name} loading="lazy" />\n                ) : (\n                  <div className="explorer-thumbnail-loading">Generating preview…</div>\n                )}
+                {thumbnailPaths[file.path] ? (
+                  <img src={encodeFilePath(thumbnailPaths[file.path])} alt={file.name} loading="lazy" />
+                ) : (
+                  <div className="explorer-thumbnail-loading">Generating preview…</div>
+                )}
                 <span>{file.name}</span>
               </div>
             ))}
