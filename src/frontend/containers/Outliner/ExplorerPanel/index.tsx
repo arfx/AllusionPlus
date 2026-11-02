@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { IconSet } from 'widgets/icons';
 import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
+import { IMG_EXTENSIONS } from '../../../../api/file';
+import { encodeFilePath } from '../../../../../common/fs';
 import { ExplorerDirectoryEntry } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
 import './ExplorerPanel.scss';
@@ -92,6 +94,11 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
+  const [includeSubfolders, setIncludeSubfolders] = useState(false);
+  const [recursiveFiles, setRecursiveFiles] = useState<ExplorerDirectoryEntry[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string>();
+  const scanId = useRef(0);
 
   const readDirectory = useCallback(async (absolutePath: string) => {
     setDirectories((previous) => ({
@@ -178,9 +185,92 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
   );
 
   const currentEntries = directories[currentDirectory ?? '']?.entries ?? [];
+
+  useEffect(() => {
+    const thisScan = ++scanId.current;
+    if (!includeSubfolders || !currentDirectory) {
+      setRecursiveFiles([]);
+      setIsScanning(false);
+      setScanError(undefined);
+      return;
+    }
+
+    let cancelled = false;
+    setRecursiveFiles([]);
+    setScanError(undefined);
+    setIsScanning(true);
+
+    const scan = async () => {
+      const pending = [currentDirectory];
+      const visited = new Set<string>();
+      const foundFiles: ExplorerDirectoryEntry[] = [];
+      let scannedDirectories = 0;
+
+      while (pending.length > 0 && !cancelled && scanId.current === thisScan) {
+        const directoryPath = pending.shift()!;
+        if (visited.has(directoryPath)) {
+          continue;
+        }
+        visited.add(directoryPath);
+
+        try {
+          const entries = await RendererMessenger.explorerReadDirectory(directoryPath);
+          scannedDirectories += 1;
+          entries.forEach((entry) => {
+            if (entry.isDirectory) {
+              pending.push(entry.path);
+            } else {
+              foundFiles.push(entry);
+            }
+          });
+          if (scannedDirectories % 8 === 0) {
+            setRecursiveFiles([...foundFiles]);
+          }
+        } catch (error) {
+          // A permission-denied or disconnected folder should not stop the rest of the scan.
+          console.warn('Could not scan Explorer directory', directoryPath, error);
+        }
+      }
+
+      if (!cancelled && scanId.current === thisScan) {
+        setRecursiveFiles(foundFiles);
+        setIsScanning(false);
+      }
+    };
+
+    void scan().catch((error) => {
+      if (!cancelled && scanId.current === thisScan) {
+        setScanError(error instanceof Error ? error.message : String(error));
+        setIsScanning(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentDirectory, includeSubfolders]);
+
   const files = useMemo(
-    () => currentEntries.filter((entry) => !entry.isDirectory),
-    [currentEntries],
+    () =>
+      (includeSubfolders ? recursiveFiles : currentEntries).filter(
+        (entry) => !entry.isDirectory,
+      ),
+    [currentEntries, includeSubfolders, recursiveFiles],
+  );
+
+  const imageExtensions = useMemo(
+    () => new Set<string>(IMG_EXTENSIONS),
+    [],
+  );
+
+  const imageFiles = useMemo(
+    () =>
+      files.filter((file) => {
+        const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+        return imageExtensions.has(extension) &&
+          !['psd', 'kra', 'exr', 'blend'].includes(extension);
+      }),
+    [files, imageExtensions],
   );
 
   const folderTree = useMemo(() => {
@@ -233,6 +323,14 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
           <div className="explorer-current-path" title={currentDirectory}>
             {currentDirectory || 'Loading home directory…'}
           </div>
+          <label className="explorer-recursive-toggle">
+            <input
+              type="checkbox"
+              checked={includeSubfolders}
+              onChange={(event) => setIncludeSubfolders(event.target.checked)}
+            />
+            Include subfolders
+          </label>
           {directories[currentDirectory ?? '']?.loading && (
             <Callout icon={IconSet.INFO}>Reading folder…</Callout>
           )}
@@ -241,18 +339,30 @@ const ExplorerPanel = (props: Partial<MultiSplitPaneProps>) => {
               Could not read this folder: {directories[currentDirectory ?? ''].error}
             </Callout>
           )}
-          {!directories[currentDirectory ?? '']?.loading &&
-            !directories[currentDirectory ?? '']?.error &&
-            files.length === 0 && (
-              <Callout icon={IconSet.INFO}>This folder does not contain any files.</Callout>
-            )}
-          <ul className="explorer-file-list">
-            {files.map((file) => (
-              <li key={file.path} title={file.path}>
-                <span className="explorer-file-icon">▧</span>
-                {file.name}
-              </li>
+          {isScanning && (
+            <div className="explorer-scan-status">Scanning subfolders… ({files.length} files found)</div>
+          )}
+          {scanError && <Callout icon={IconSet.INFO}>Could not complete the scan: {scanError}</Callout>}
+          {!isScanning && files.length === 0 && (
+            <Callout icon={IconSet.INFO}>This folder does not contain any files.</Callout>
+          )}
+          <div className="explorer-image-grid">
+            {imageFiles.map((file) => (
+              <div className="explorer-image-item" key={file.path} title={file.path}>
+                <img src={encodeFilePath(file.path)} alt={file.name} loading="lazy" />
+                <span>{file.name}</span>
+              </div>
             ))}
+          </div>
+          <ul className="explorer-file-list">
+            {files
+              .filter((file) => !imageFiles.includes(file))
+              .map((file) => (
+                <li key={file.path} title={file.path}>
+                  <span className="explorer-file-icon">▧</span>
+                  {file.name}
+                </li>
+              ))}
           </ul>
         </section>
       </div>
