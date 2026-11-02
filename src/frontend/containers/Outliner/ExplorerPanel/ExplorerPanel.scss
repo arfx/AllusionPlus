@@ -1,0 +1,120 @@
+.explorer-browser {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.explorer-folder-tree {
+  flex: 0 0 42%;
+  min-width: 120px;
+  max-width: 320px;
+  overflow: auto;
+  border-right: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  padding: 4px 0;
+}
+
+.explorer-folder-content {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: auto;
+  padding: 8px;
+}
+
+.explorer-current-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 6px 8px;
+  opacity: 0.75;
+  font-size: 0.9em;
+  border-bottom: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  margin-bottom: 6px;
+}
+
+.explorer-folder-row {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding-right: 6px;
+}
+
+.explorer-folder-row.selected {
+  background: var(--selected-background, rgba(100, 150, 220, 0.2));
+}
+
+.explorer-folder-toggle,
+.explorer-folder-label {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.explorer-folder-toggle {
+  flex: 0 0 22px;
+  width: 22px;
+  padding: 2px;
+  opacity: 0.75;
+}
+
+.explorer-folder-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 4px 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.explorer-folder-label span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explorer-folder-toggle:hover,
+.explorer-folder-label:hover {
+  background: var(--hover-background, rgba(128, 128, 128, 0.12));
+}
+
+.explorer-folder-icon,
+.explorer-file-icon {
+  flex: 0 0 auto;
+  opacity: 0.8;
+}
+
+.explorer-tree-message {
+  padding: 4px 8px 4px 32px;
+  opacity: 0.65;
+  font-size: 0.85em;
+}
+
+.explorer-tree-message.error {
+  color: var(--error-color, #d66);
+}
+
+.explorer-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.explorer-file-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding: 2px 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.explorer-file-list li:hover {
+  background: var(--hover-background, rgba(128, 128, 128, 0.12));
+}
