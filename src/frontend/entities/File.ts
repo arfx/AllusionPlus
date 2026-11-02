@@ -81,7 +81,7 @@ export class ClientFile {
   constructor(
     store: FileStore,
     fileProps: FileDTO,
-    options: { absolutePath?: string; autoSave?: boolean } = {},
+    options: { absolutePath?: string; autoSave?: boolean; onChange?: (file: FileDTO) => void } = {},
   ) {
     this.store = store;
 
@@ -119,6 +119,8 @@ export class ClientFile {
         // Remove reactive properties, since observable props are not accepted in the backend
         if (this.autoSave) {
           this.store.save(file);
+        } else {
+          options.onChange?.(file);
         }
       },
       { delay: 500 },
