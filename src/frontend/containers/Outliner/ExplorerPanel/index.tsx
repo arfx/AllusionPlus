@@ -208,7 +208,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     [directories, readDirectory, uiStore],
   );
 
-  const toggleFolder = useCallback(
+    const toggleFolder = useCallback(
     async (entry: ExplorerDirectoryEntry) => {
       if (expandedPaths.has(entry.path)) {
         setExpandedPaths((previous) => {
@@ -219,20 +219,17 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         return;
       }
 
-      if (directories[entry.path]?.loading) return;
       const entries = await readDirectory(entry.path);
       const hasSubfolders = entries.some((item) => item.isDirectory);
+      setDirectories((previous) => ({
+        ...previous,
+        [entry.path]: { entries, loading: false, hasSubfolders },
+      }));
       if (hasSubfolders) {
         setExpandedPaths((previous) => new Set(previous).add(entry.path));
-      } else {
-        setExpandedPaths((previous) => {
-          const next = new Set(previous);
-          next.delete(entry.path);
-          return next;
-        });
       }
     },
-    [directories, expandedPaths, readDirectory],
+    [expandedPaths, readDirectory],
   );
 
   useEffect(() => {
