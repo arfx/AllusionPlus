@@ -187,8 +187,8 @@ export const Thumbnail = observer(
           // Display an existing thumbnail immediately. Check freshness and refresh it
           // in the background so the gallery does not wait for filesystem stats or decoding.
           if (await fse.pathExists(cachedThumbnailPath)) {
-            // Generate/load a persistent low-resolution preview before revealing the full thumbnail.
-            await imageLoader.ensurePreviewThumbnail(file, priority);
+            // A cached thumbnail is already display-ready. Never block it on generating
+            // an optional low-resolution preview; refresh stale thumbnails in the background.
             void imageLoader.ensureThumbnail(file, priority).catch((error) => {
               console.error('Could not refresh thumbnail in the background:', file.absolutePath, error);
             });
