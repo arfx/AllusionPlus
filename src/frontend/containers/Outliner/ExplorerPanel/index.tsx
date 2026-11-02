@@ -219,6 +219,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         return;
       }
 
+      if (directories[entry.path]?.loading) return;
       const entries = await readDirectory(entry.path);
       const hasSubfolders = entries.some((item) => item.isDirectory);
       if (hasSubfolders) {
