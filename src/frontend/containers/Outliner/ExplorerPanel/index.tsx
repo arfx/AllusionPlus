@@ -70,7 +70,7 @@ const FolderNode = ({
           title={entry.path}
           onClick={() => onSelect(entry.path)}
         >
-          <span className="explorer-folder-icon">📁</span>
+          <span className="explorer-folder-icon">{IconSet.FOLDER_CLOSE}</span>
           <span>{entry.name}</span>
         </button>
       </div>
