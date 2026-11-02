@@ -5,8 +5,13 @@ import { useEffect } from 'react';
 
 import { thumbnailFormat } from 'common/config';
 import { ID } from '../../api/id';
-import { ClientFile } from '../entities/File';
 import { encodeFilePath, isFileExtensionVideo } from 'common/fs';
+
+export interface ThumbnailSource {
+  id: ID;
+  absolutePath: string;
+  extension: string;
+}
 
 export interface IThumbnailMessage {
   filePath: string;
@@ -128,7 +133,7 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number, defe
  **/
 export const generateThumbnailUsingWorker = action(
   async (
-    file: ClientFile,
+    file: ThumbnailSource,
     thumbnailFilePath: string,
     timeoutReject = true,
     timeout = 10000,
