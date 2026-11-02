@@ -16,6 +16,7 @@ export interface IThumbnailMessage {
   imageBitmap?: ImageBitmap;
   requestToken: number;
   priority?: number;
+  previewOnly?: boolean;
 }
 
 export interface IThumbnailMessageResponse {
@@ -133,14 +134,17 @@ export const generateThumbnailUsingWorker = action(
     timeout = 10000,
     priority = 0,
     onPreview?: PreviewCallback,
+    sourcePath?: string,
+    previewOnly = false,
   ) => {
     const msg: IThumbnailMessage = {
-      filePath: file.absolutePath,
+      filePath: sourcePath ?? file.absolutePath,
       thumbnailFilePath,
       thumbnailFormat,
       fileId: file.id,
       requestToken: nextRequestToken++,
       priority,
+      previewOnly,
     };
 
     return new Promise<void>((resolve, reject) => {
@@ -216,7 +220,7 @@ export const generateThumbnailUsingWorker = action(
         }
       };
 
-      if (isFileExtensionVideo(file.extension)) {
+      if (!previewOnly && isFileExtensionVideo(file.extension)) {
         // Decode video frames on the main thread; workers cannot create DOM videos.
         generateVideoThumbnailBitmap(file.absolutePath)
           .then((bitmap) => {

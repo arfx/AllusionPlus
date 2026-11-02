@@ -174,7 +174,7 @@ export class ClientFile {
   }
 
   @action.bound setPreviewThumbnailPath(thumbnailPath: string): void {
-    this.previewThumbnailPath = thumbnailPath;
+    this.previewThumbnailPath = `${thumbnailPath.split('?')[0]}?v=${Date.now()}`;
   }
 
   @action.bound setThumbnailPath(thumbnailPath: string): void {

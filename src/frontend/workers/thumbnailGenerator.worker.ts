@@ -69,7 +69,26 @@ const generateAndStoreThumbnail = async (
   imageBitmap: ImageBitmap | undefined,
   fileId: string,
   requestToken: number,
+  previewOnly = false,
 ) => {
+  if (previewOnly) {
+    const inputBuffer = await fse.readFile(filePath);
+    const img = await createImageBitmap(new Blob([inputBuffer]));
+    try {
+      const maxEdge = Math.max(img.width, img.height);
+      const scale = Math.min(1, QUICK_PREVIEW_MAX_SIZE / maxEdge);
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const preview = await renderImageBuffer(img, width, height, 0.68);
+      await fse.outputFile(thumbnailFilePath, Buffer.from(preview));
+      ctx.postMessage({
+        type: 'preview', fileId, thumbnailPath: thumbnailFilePath, requestToken,
+      } satisfies IThumbnailMessageResponse);
+      return thumbnailFilePath;
+    } finally {
+      img.close();
+    }
+  }
   const data = await generateThumbnailData(filePath, imageBitmap);
   if (!data.thumbnail) return '';
   if (data.preview) {
@@ -173,6 +192,7 @@ async function processMessage(data: IThumbnailMessage) {
         imageBitmap,
         fileId,
         data.requestToken,
+        data.previewOnly,
       );
       const response: IThumbnailMessageResponse = {
         fileId,

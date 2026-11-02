@@ -167,6 +167,32 @@ class ImageLoader {
     );
   }
 
+  async ensurePreviewThumbnail(file: ClientFile, priority = 0): Promise<void> {
+    const thumbnailPath = file.thumbnailPath.split('?')[0];
+    const previewPath = `${thumbnailPath}.preview.${thumbnailFormat}`;
+
+    if (await fse.pathExists(previewPath)) {
+      file.setPreviewThumbnailPath(previewPath);
+      return;
+    }
+    if (!(await fse.pathExists(thumbnailPath))) return;
+
+    try {
+      await generateThumbnailUsingWorker(
+        file,
+        previewPath,
+        true,
+        10000,
+        priority,
+        (generatedPreviewPath) => file.setPreviewThumbnailPath(generatedPreviewPath),
+        thumbnailPath,
+        true,
+      );
+    } catch (error) {
+      console.warn('Could not generate cached preview thumbnail:', file.absolutePath, error);
+    }
+  }
+
   async ensureThumbnail(file: ClientFile, priority = 0): Promise<boolean> {
     // Never regenerate over a user-assigned custom thumbnail.
     if (file.hasCustomThumbnail) {

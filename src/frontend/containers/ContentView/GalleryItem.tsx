@@ -187,6 +187,8 @@ export const Thumbnail = observer(
           // Display an existing thumbnail immediately. Check freshness and refresh it
           // in the background so the gallery does not wait for filesystem stats or decoding.
           if (await fse.pathExists(cachedThumbnailPath)) {
+            // Generate/load a persistent low-resolution preview before revealing the full thumbnail.
+            await imageLoader.ensurePreviewThumbnail(file, priority);
             void imageLoader.ensureThumbnail(file, priority).catch((error) => {
               console.error('Could not refresh thumbnail in the background:', file.absolutePath, error);
             });
@@ -278,9 +280,8 @@ export const Thumbnail = observer(
     const is_pixelated = is_lowres && uiStore.upscaleMode === 'pixelated';
     const autoPlay = (galleryVideoPlaybackMode === 'auto' || hovered) ?? false;
 
-    const displaySrc = imageSource.tag === 'ready' && 'ok' in imageSource.value
-      ? src
-      : file.previewThumbnailPath || src;
+    // Keep the low-resolution preview visible until it has loaded, then swap to the full thumbnail.
+    const displaySrc = loading && file.previewThumbnailPath ? file.previewThumbnailPath : src;
 
     const props = useMemo(() => {
       const props = {
