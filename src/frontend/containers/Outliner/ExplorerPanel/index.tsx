@@ -104,6 +104,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string>();
   const [thumbnailPaths, setThumbnailPaths] = useState<Record<string, string>>({});
+  const [thumbnailErrors, setThumbnailErrors] = useState<Record<string, string>>({});
   const [displayLimit, setDisplayLimit] = useState(120);
   const scanId = useRef(0);
 
@@ -364,6 +365,13 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       });
       return next;
     });
+    setThumbnailErrors((previous) => {
+      const next: Record<string, string> = {};
+      Object.entries(previous).forEach(([filePath, message]) => {
+        if (visiblePaths.has(filePath)) next[filePath] = message;
+      });
+      return next;
+    });
 
     // UiStore resolves the shared thumbnail cache directory asynchronously.
     // Wait for it instead of generating one avoidable error per visible image.
@@ -404,10 +412,22 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
               const resolvedThumbnailPath = thumbnailPath;
               if (!cancelled && resolvedThumbnailPath) {
                 setThumbnailPaths((previous) => ({ ...previous, [file.path]: resolvedThumbnailPath }));
+                setThumbnailErrors((previous) => {
+                  if (!previous[file.path]) return previous;
+                  const next = { ...previous };
+                  delete next[file.path];
+                  return next;
+                });
               }
             } catch (error) {
               // A single unsupported or damaged file must not prevent other previews.
               console.warn('Could not generate Explorer thumbnail', file.path, error);
+              if (!cancelled) {
+                setThumbnailErrors((previous) => ({
+                  ...previous,
+                  [file.path]: error instanceof Error ? error.message : 'Preview unavailable',
+                }));
+              }
             }
           }),
         );
@@ -498,7 +518,10 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
           {scanError && (
             <Callout icon={IconSet.INFO}>Could not complete the scan: {scanError}</Callout>
           )}
-          {!isScanning && !directories[currentDirectory ?? '']?.loading && files.length === 0 && (
+          {!isScanning &&
+            !directories[currentDirectory ?? '']?.loading &&
+            !directories[currentDirectory ?? '']?.error &&
+            files.length === 0 && (
             <Callout icon={IconSet.INFO}>This folder does not contain any files.</Callout>
           )}
           <div className="explorer-image-grid">
@@ -506,6 +529,10 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
               <div className="explorer-image-item" key={file.path} title={file.path}>
                 {thumbnailPaths[file.path] ? (
                   <img src={encodeFilePath(thumbnailPaths[file.path])} alt={file.name} loading="lazy" />
+                ) : thumbnailErrors[file.path] ? (
+                  <div className="explorer-thumbnail-loading" title={thumbnailErrors[file.path]}>
+                    Preview unavailable
+                  </div>
                 ) : (
                   <div className="explorer-thumbnail-loading">Generating preview…</div>
                 )}
