@@ -334,23 +334,29 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     });
 
     const generate = async () => {
-      for (const file of imageFiles) {
-        if (cancelled) return;
-        const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-        try {
-          const thumbnailPath = await imageLoader.ensureExplorerThumbnail(
-            file.path,
-            extension,
-            uiStore.thumbnailDirectory,
-            1,
-          );
-          if (!cancelled) {
-            setThumbnailPaths((previous) => ({ ...previous, [file.path]: thumbnailPath }));
-          }
-        } catch (error) {
-          // A single unsupported or damaged file must not prevent other previews.
-          console.warn('Could not generate Explorer thumbnail', file.path, error);
-        }
+      // Keep a small number of requests active so large folders do not flood
+      // the shared worker queue or delay thumbnails already visible elsewhere.
+      for (let index = 0; index < imageFiles.length && !cancelled; index += 4) {
+        const batch = imageFiles.slice(index, index + 4);
+        await Promise.all(
+          batch.map(async (file) => {
+            const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+            try {
+              const thumbnailPath = await imageLoader.ensureExplorerThumbnail(
+                file.path,
+                extension,
+                uiStore.thumbnailDirectory,
+                1,
+              );
+              if (!cancelled) {
+                setThumbnailPaths((previous) => ({ ...previous, [file.path]: thumbnailPath }));
+              }
+            } catch (error) {
+              // A single unsupported or damaged file must not prevent other previews.
+              console.warn('Could not generate Explorer thumbnail', file.path, error);
+            }
+          }),
+        );
       }
     };
 
