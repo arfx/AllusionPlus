@@ -1,12 +1,9 @@
 import { observer } from 'mobx-react-lite';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import { IconSet } from 'widgets/icons';
-import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
-import { encodeFilePath } from '../../../../../common/fs';
-import { ThumbnailRequestDeferredError } from '../../../image/ThumbnailGeneration';
 import { useStore } from '../../../contexts/StoreContext';
 import { ExplorerDirectoryEntry } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
@@ -93,21 +90,11 @@ const FolderNode = ({
 };
 
 const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
-  const { uiStore, imageLoader } = useStore();
+  const { uiStore } = useStore();
   const [rootDirectory, setRootDirectory] = useState<string>();
-  const [currentDirectory, setCurrentDirectory] = useState<string>();
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
-  const [includeSubfolders, setIncludeSubfolders] = useState(uiStore.explorerIncludeSubfolders);
-  const [recursiveFiles, setRecursiveFiles] = useState<ExplorerDirectoryEntry[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanError, setScanError] = useState<string>();
-  const [thumbnailPaths, setThumbnailPaths] = useState<Record<string, string>>({});
-  const [thumbnailErrors, setThumbnailErrors] = useState<Record<string, string>>({});
-  const [displayLimit, setDisplayLimit] = useState(120);
-  const [directoryResetVersion, setDirectoryResetVersion] = useState(0);
-  const scanId = useRef(0);
 
   const readDirectory = useCallback(async (absolutePath: string) => {
     setDirectories((previous) => ({
@@ -120,27 +107,21 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         ...previous,
         [absolutePath]: { entries, loading: false },
       }));
-      return entries;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setDirectories((previous) => ({
         ...previous,
         [absolutePath]: { entries: [], loading: false, error: message },
       }));
-      return [];
     }
   }, []);
 
   const selectRoot = useCallback(
     async (absolutePath: string) => {
       setRootDirectory(absolutePath);
-      setCurrentDirectory(absolutePath);
       uiStore.setExplorerRootDirectory(absolutePath);
+      uiStore.setExplorerCurrentDirectory(absolutePath);
       setDirectories({});
-      setRecursiveFiles([]);
-      setScanError(undefined);
-      setDisplayLimit(120);
-      setDirectoryResetVersion((previous) => previous + 1);
       setExpandedPaths(new Set([absolutePath]));
       await readDirectory(absolutePath);
     },
@@ -155,13 +136,9 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       : RendererMessenger.getPath('home');
     resolveInitialDirectory
       .then((directory) => {
-        if (isActive) {
-          void selectRoot(directory);
-        }
+        if (isActive) void selectRoot(directory);
       })
-      .catch((error) => {
-        console.error('Could not resolve Explorer home directory', error);
-      });
+      .catch((error) => console.error('Could not resolve Explorer home directory', error));
     return () => {
       isActive = false;
     };
@@ -185,12 +162,12 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
 
   const selectDirectory = useCallback(
     (absolutePath: string) => {
-      setCurrentDirectory(absolutePath);
+      uiStore.setExplorerCurrentDirectory(absolutePath);
       if (!directories[absolutePath] || directories[absolutePath].error) {
         void readDirectory(absolutePath);
       }
     },
-    [directories, readDirectory],
+    [directories, readDirectory, uiStore],
   );
 
   const toggleFolder = useCallback(
@@ -203,7 +180,6 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         });
         return;
       }
-
       setExpandedPaths((previous) => new Set(previous).add(entry.path));
       if (!directories[entry.path] || directories[entry.path].error) {
         await readDirectory(entry.path);
@@ -212,252 +188,13 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     [directories, expandedPaths, readDirectory],
   );
 
-  const currentEntries = directories[currentDirectory ?? '']?.entries ?? [];
-
-  useEffect(() => {
-    const thisScan = ++scanId.current;
-    if (!includeSubfolders || !currentDirectory) {
-      setRecursiveFiles([]);
-      setIsScanning(false);
-      setScanError(undefined);
-      return;
-    }
-
-    let cancelled = false;
-    setRecursiveFiles([]);
-    setScanError(undefined);
-    setIsScanning(true);
-
-    const scan = async () => {
-      const pending = [currentDirectory];
-      let queueIndex = 0;
-      let skippedDirectories = 0;
-      const visited = new Set<string>();
-      const foundFiles: ExplorerDirectoryEntry[] = [];
-      let scannedDirectories = 0;
-      let lastPublishedCount = 0;
-
-      const scanWorker = async () => {
-        while (!cancelled && scanId.current === thisScan) {
-          // JavaScript runs this dequeue section synchronously, so workers
-          // cannot claim the same directory before awaiting the IPC request.
-          const directoryPath = pending[queueIndex++];
-          if (!directoryPath) return;
-          if (visited.has(directoryPath)) continue;
-          visited.add(directoryPath);
-
-          try {
-            const entries = await RendererMessenger.explorerReadDirectory(directoryPath);
-            if (cancelled || scanId.current !== thisScan) return;
-            scannedDirectories += 1;
-            entries.forEach((entry) => {
-              if (entry.isDirectory) {
-                pending.push(entry.path);
-              } else {
-                foundFiles.push(entry);
-              }
-            });
-            if (scannedDirectories - lastPublishedCount >= 16) {
-              lastPublishedCount = scannedDirectories;
-              setRecursiveFiles([...foundFiles]);
-            }
-          } catch (error) {
-            if (cancelled || scanId.current !== thisScan) return;
-            // A permission-denied or disconnected folder should not stop the rest of the scan.
-            skippedDirectories += 1;
-            console.warn('Could not scan Explorer directory', directoryPath, error);
-          }
-        }
-      };
-
-      // A small worker pool keeps network drives responsive without creating
-      // an IPC request for every discovered directory at once.
-      await Promise.all(Array.from({ length: 4 }, () => scanWorker()));
-
-      if (!cancelled && scanId.current === thisScan) {
-        setRecursiveFiles(foundFiles);
-        setScanError(
-          skippedDirectories > 0
-            ? `Could not read ${skippedDirectories} folder(s); some files may be missing.`
-            : undefined,
-        );
-        setIsScanning(false);
-      }
-    };
-
-    void scan().catch((error) => {
-      if (!cancelled && scanId.current === thisScan) {
-        setScanError(error instanceof Error ? error.message : String(error));
-        setIsScanning(false);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentDirectory, directoryResetVersion, includeSubfolders]);
-
-  const files = useMemo(
-    () =>
-      (includeSubfolders ? recursiveFiles : currentEntries).filter(
-        (entry) => !entry.isDirectory,
-      ),
-    [currentEntries, includeSubfolders, recursiveFiles],
-  );
-
-  const imageExtensions = useMemo(
-    () =>
-      new Set([
-        'gif',
-        'png',
-        'apng',
-        'jpg',
-        'jpeg',
-        'jfif',
-        'webp',
-        'avif',
-        'bmp',
-        'ico',
-        'svg',
-        'tif',
-        'tiff',
-        'psd',
-        'kra',
-        'exr',
-        'mp4',
-        'webm',
-        'ogg',
-        'mov',
-      ]),
-    [],
-  );
-
-  const imageFiles = useMemo(
-    () =>
-      files.filter((file) => {
-        const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-        return imageExtensions.has(extension);
-      }),
-    [files, imageExtensions],
-  );
-
-  // Keep the DOM and thumbnail queue bounded when browsing large directories.
-  const visibleImageFiles = useMemo(
-    () => imageFiles.slice(0, displayLimit),
-    [displayLimit, imageFiles],
-  );
-  const visibleOtherFiles = useMemo(
-    () =>
-      files
-        .filter((file) => !imageExtensions.has(file.name.split('.').pop()?.toLowerCase() ?? ''))
-        .slice(0, displayLimit),
-    [displayLimit, files, imageExtensions],
-  );
-  const hasMoreFiles = imageFiles.length > visibleImageFiles.length ||
-    files.length - imageFiles.length > visibleOtherFiles.length;
-
-  useEffect(() => {
-    setDisplayLimit(120);
-  }, [currentDirectory, includeSubfolders]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const visiblePaths = new Set(visibleImageFiles.map((file) => file.path));
-    setThumbnailPaths((previous) => {
-      const next: Record<string, string> = {};
-      Object.entries(previous).forEach(([filePath, thumbnailPath]) => {
-        if (visiblePaths.has(filePath)) next[filePath] = thumbnailPath;
-      });
-      return next;
-    });
-    setThumbnailErrors((previous) => {
-      const next: Record<string, string> = {};
-      Object.entries(previous).forEach(([filePath, message]) => {
-        if (visiblePaths.has(filePath)) next[filePath] = message;
-      });
-      return next;
-    });
-
-    // UiStore resolves the shared thumbnail cache directory asynchronously.
-    // Wait for it instead of generating one avoidable error per visible image.
-    if (!uiStore.thumbnailDirectory) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const generate = async () => {
-      // Keep a small number of requests active so large folders do not flood
-      // the shared worker queue or delay thumbnails already visible elsewhere.
-      for (let index = 0; index < visibleImageFiles.length && !cancelled; index += 4) {
-        const batch = visibleImageFiles.slice(index, index + 4);
-        await Promise.all(
-          batch.map(async (file) => {
-            const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-            try {
-              let thumbnailPath: string | undefined;
-              for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
-                try {
-                  thumbnailPath = await imageLoader.ensureExplorerThumbnail(
-                    file.path,
-                    extension,
-                    uiStore.thumbnailDirectory,
-                    1,
-                  );
-                  break;
-                } catch (error) {
-                  if (!(error instanceof ThumbnailRequestDeferredError) || attempt === 3) {
-                    throw error;
-                  }
-                  // The shared Allusion worker queue is busy. Retry deferred
-                  // Explorer work instead of leaving a permanent loading tile.
-                  await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
-                }
-              }
-              const resolvedThumbnailPath = thumbnailPath;
-              if (!cancelled && resolvedThumbnailPath) {
-                setThumbnailPaths((previous) => ({ ...previous, [file.path]: resolvedThumbnailPath }));
-                setThumbnailErrors((previous) => {
-                  if (!previous[file.path]) return previous;
-                  const next = { ...previous };
-                  delete next[file.path];
-                  return next;
-                });
-              }
-            } catch (error) {
-              // A single unsupported or damaged file must not prevent other previews.
-              console.warn('Could not generate Explorer thumbnail', file.path, error);
-              if (!cancelled) {
-                setThumbnailErrors((previous) => ({
-                  ...previous,
-                  [file.path]: error instanceof Error ? error.message : 'Preview unavailable',
-                }));
-              }
-            }
-          }),
-        );
-      }
-    };
-
-    void generate();
-    return () => {
-      cancelled = true;
-    };
-  }, [visibleImageFiles, imageLoader, uiStore.thumbnailDirectory]);
-
-  const folderTree = useMemo(() => {
-    if (!rootDirectory) {
-      return [];
-    }
-    const rootName = rootDirectory.split(/[\\/]/).filter(Boolean).pop() || rootDirectory;
-    return [
-      {
-        name: rootName,
+  const folderTree = rootDirectory
+    ? [{
+        name: rootDirectory.split(/[\\/]/).filter(Boolean).pop() || rootDirectory,
         path: rootDirectory,
         isDirectory: true,
-      },
-    ];
-  }, [rootDirectory]);
+      }]
+    : [];
 
   return (
     <MultiSplitPane
@@ -470,7 +207,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             text="Choose folder"
             onClick={chooseDirectory}
             disabled={isChoosingDirectory}
-            tooltip="Browse a folder without adding it as a Location"
+            tooltip="Browse without adding this folder as a Location"
           />
         </Toolbar>
       }
@@ -483,7 +220,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
               key={root.path}
               entry={root}
               level={0}
-              selectedPath={currentDirectory ?? ''}
+              selectedPath={uiStore.explorerCurrentDirectory}
               expandedPaths={expandedPaths}
               directories={directories}
               onSelect={selectDirectory}
@@ -491,78 +228,6 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             />
           ))}
         </aside>
-        <section className="explorer-folder-content" aria-label="Folder contents">
-          <div className="explorer-current-path" title={currentDirectory}>
-            {currentDirectory || 'Loading home directory…'}
-          </div>
-          <label className="explorer-recursive-toggle">
-            <input
-              type="checkbox"
-              checked={includeSubfolders}
-              onChange={(event) => {
-                const checked = event.target.checked;
-                setIncludeSubfolders(checked);
-                uiStore.setExplorerIncludeSubfolders(checked);
-              }}
-            />
-            Include subfolders
-          </label>
-          {directories[currentDirectory ?? '']?.loading && (
-            <Callout icon={IconSet.INFO}>Reading folder…</Callout>
-          )}
-          {directories[currentDirectory ?? '']?.error && (
-            <Callout icon={IconSet.INFO}>
-              Could not read this folder: {directories[currentDirectory ?? ''].error}
-            </Callout>
-          )}
-          {isScanning && (
-            <div className="explorer-scan-status">
-              Scanning subfolders… ({files.length} files found)
-            </div>
-          )}
-          {scanError && (
-            <Callout icon={IconSet.INFO}>Could not complete the scan: {scanError}</Callout>
-          )}
-          {!isScanning &&
-            !directories[currentDirectory ?? '']?.loading &&
-            !directories[currentDirectory ?? '']?.error &&
-            files.length === 0 && (
-            <Callout icon={IconSet.INFO}>This folder does not contain any files.</Callout>
-          )}
-          <div className="explorer-image-grid">
-            {visibleImageFiles.map((file) => (
-              <div className="explorer-image-item" key={file.path} title={file.path}>
-                {thumbnailPaths[file.path] ? (
-                  <img src={encodeFilePath(thumbnailPaths[file.path])} alt={file.name} loading="lazy" />
-                ) : thumbnailErrors[file.path] ? (
-                  <div className="explorer-thumbnail-loading" title={thumbnailErrors[file.path]}>
-                    Preview unavailable
-                  </div>
-                ) : (
-                  <div className="explorer-thumbnail-loading">Generating preview…</div>
-                )}
-                <span>{file.name}</span>
-              </div>
-            ))}
-          </div>
-          <ul className="explorer-file-list">
-            {visibleOtherFiles.map((file) => (
-              <li key={file.path} title={file.path}>
-                <span className="explorer-file-icon">▧</span>
-                {file.name}
-              </li>
-            ))}
-          </ul>
-          {hasMoreFiles && (
-            <button
-              type="button"
-              className="explorer-load-more"
-              onClick={() => setDisplayLimit((previous) => previous + 120)}
-            >
-              Load next batch
-            </button>
-          )}
-        </section>
       </div>
     </MultiSplitPane>
   );
