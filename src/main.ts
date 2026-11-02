@@ -845,6 +845,9 @@ MainMessenger.onMessageBoxSync(dialog);
 MainMessenger.onGetPath((path) => app.getPath(path));
 
 MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
+  if (typeof absolutePath !== 'string' || absolutePath.length === 0 || !path.isAbsolute(absolutePath)) {
+    throw new Error('Explorer requires an absolute directory path.');
+  }
   const entries = await fse.readdir(absolutePath, { withFileTypes: true });
   return entries
     .filter((entry) => entry.isDirectory() || entry.isFile())
