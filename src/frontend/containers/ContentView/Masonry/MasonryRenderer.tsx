@@ -115,6 +115,31 @@ const MasonryRenderer = observer(({ contentRect, select, lastSelectionIndex }: G
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Ctrl + mouse wheel adjusts thumbnail size, matching the classic Allusion workflow.
+  useEffect(() => {
+    const adjustThumbnailSize = (delta: number) => {
+      const current = getThumbnailSize(uiStore.thumbnailSize);
+      const next = Math.max(80, Math.min(640, current + delta));
+      uiStore.setThumbnailSize(next);
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      adjustThumbnailSize(event.deltaY < 0 ? 20 : -20);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !['+', '=', '-', '_'].includes(event.key)) return;
+      event.preventDefault();
+      adjustThumbnailSize(['+', '='].includes(event.key) ? 20 : -20);
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [uiStore]);
+
   // Initialize on mount
   useEffect(() => {
     (async function onMount() {
