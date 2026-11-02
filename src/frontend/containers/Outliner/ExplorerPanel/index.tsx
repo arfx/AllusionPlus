@@ -222,24 +222,25 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       }
 
       let directory = cachedDirectory;
-      if (!directory || directory.error) {
-        const entries = await RendererMessenger.explorerReadDirectory(entry.path).catch((error) => {
-          console.warn('Could not read Explorer folder', entry.path, error);
-          return [];
-        });
-        directory = {
-          entries,
-          loading: false,
-          hasSubfolders: entries.some((item) => item.isDirectory),
-        };
-        setDirectories((previous) => ({ ...previous, [entry.path]: directory! }));
+      if (!directory || directory.error || directory.loading) {
+        await readDirectory(entry.path);
+        directory = directories[entry.path];
       }
-
-      if (directory.error || directory.hasSubfolders) {
+      const entries = directory?.error
+        ? []
+        : directory?.entries ?? (await readDirectory(entry.path));
+      const hasSubfolders = entries.some((item) => item.isDirectory);
+      if (hasSubfolders || directory?.error) {
         setExpandedPaths((previous) => new Set(previous).add(entry.path));
+      } else {
+        setExpandedPaths((previous) => {
+          const next = new Set(previous);
+          next.delete(entry.path);
+          return next;
+        });
       }
     },
-    [directories, expandedPaths],
+    [directories, expandedPaths, readDirectory],
   );
 
   useEffect(() => {
