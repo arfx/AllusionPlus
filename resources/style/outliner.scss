@@ -64,7 +64,8 @@
 
 #tag-hierarchy,
 #location-list,
-#saved-searches-list {
+#saved-searches-list,
+.saved-folder-bookmarks {
   .btn-icon {
     display: none;
   }
@@ -72,6 +73,14 @@
   .tree-content-label:hover > .btn-icon,
   .tree-content-label > .btn-icon[aria-hidden='false'] {
     display: flex;
+  }
+}
+
+.saved-folder-bookmarks {
+  .tree-content-label:hover {
+    background-color: var(--hover-color);
+    color: var(--text-color-strong);
+    transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
