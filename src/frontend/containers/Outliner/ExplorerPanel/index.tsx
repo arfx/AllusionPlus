@@ -365,6 +365,14 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       return next;
     });
 
+    // UiStore resolves the shared thumbnail cache directory asynchronously.
+    // Wait for it instead of generating one avoidable error per visible image.
+    if (!uiStore.thumbnailDirectory) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const generate = async () => {
       // Keep a small number of requests active so large folders do not flood
       // the shared worker queue or delay thumbnails already visible elsewhere.
@@ -519,7 +527,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
               className="explorer-load-more"
               onClick={() => setDisplayLimit((previous) => previous + 120)}
             >
-              Load next 120 items
+              Load next batch
             </button>
           )}
         </section>
