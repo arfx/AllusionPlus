@@ -676,6 +676,15 @@ MainMessenger.onSetTheme((msg) => (nativeTheme.themeSource = msg.theme));
 // Fetch the OS thumbnail (QuickLook on macOS, shell thumbnail on Windows) for a file.
 // Returns a PNG buffer, or undefined when no preview is available (e.g. on Linux).
 MainMessenger.onGetQuickLookThumbnail(async (absolutePath, size) => {
+  // OS-provided thumbnails are only supported on macOS and Windows. Linux
+  // uses the app's regular thumbnail generation pipeline instead.
+  if (process.platform !== 'darwin' && process.platform !== 'win32') {
+    return undefined;
+  }
+  if (typeof nativeImage.createThumbnailFromPath !== 'function') {
+    return undefined;
+  }
+
   try {
     const image = await nativeImage.createThumbnailFromPath(absolutePath, {
       width: size,
@@ -774,6 +783,9 @@ async function tryCreateIcon(
   try {
     let icon;
     if (method === 'ThumbnailFromPath') {
+      if (typeof nativeImage.createThumbnailFromPath !== 'function') {
+        return null;
+      }
       icon = await nativeImage.createThumbnailFromPath(absolutePath, { width: 150, height: 150 });
     } else {
       icon = nativeImage.createFromPath(absolutePath);
