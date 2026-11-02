@@ -9,14 +9,16 @@
   flex: 1 1 auto;
   min-width: 0;
   overflow: auto;
-  padding: 4px 0;
+  padding: 3px 0;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .explorer-folder-row {
   display: flex;
   align-items: center;
-  min-height: 28px;
-  padding-right: 6px;
+  min-height: 30px;
+  padding: 0 6px 0 0;
 }
 
 .explorer-folder-row.selected {
@@ -33,10 +35,11 @@
 }
 
 .explorer-folder-toggle {
-  flex: 0 0 22px;
-  width: 22px;
-  padding: 2px;
+  flex: 0 0 17px;
+  width: 17px;
+  padding: 2px 0;
   opacity: 0.75;
+  text-align: center;
 }
 
 .explorer-folder-label {
@@ -46,7 +49,7 @@
   flex: 1;
   min-width: 0;
   text-align: left;
-  padding: 4px 2px;
+  padding: 5px 2px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -64,13 +67,13 @@
 
 .explorer-folder-icon {
   flex: 0 0 auto;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .explorer-tree-message {
-  padding: 4px 8px 4px 32px;
+  padding: 5px 8px 5px 25px;
   opacity: 0.65;
-  font-size: 0.85em;
+  font-size: 12px;
 }
 
 .explorer-tree-message.error {
@@ -80,9 +83,10 @@
 .explorer-recursive-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px 8px;
-  font-size: 0.9em;
+  gap: 7px;
+  min-height: 32px;
+  padding: 3px 8px 5px 2px;
+  font-size: 13px;
 }
 
 .explorer-recursive-toggle input {
