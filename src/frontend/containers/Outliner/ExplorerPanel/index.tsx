@@ -221,16 +221,12 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         return;
       }
 
-      let directory = cachedDirectory;
-      if (!directory || directory.error || directory.loading) {
-        await readDirectory(entry.path);
-        directory = directories[entry.path];
-      }
-      const entries = directory?.error
-        ? []
-        : directory?.entries ?? (await readDirectory(entry.path));
+      const directory = cachedDirectory;
+      const entries = directory && !directory.loading && !directory.error
+        ? directory.entries
+        : await readDirectory(entry.path);
       const hasSubfolders = entries.some((item) => item.isDirectory);
-      if (hasSubfolders || directory?.error) {
+      if (hasSubfolders || directories[entry.path]?.error) {
         setExpandedPaths((previous) => new Set(previous).add(entry.path));
       } else {
         setExpandedPaths((previous) => {
