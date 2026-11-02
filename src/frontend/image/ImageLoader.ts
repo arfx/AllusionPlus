@@ -95,6 +95,14 @@ class ImageLoader {
   /** File ids that need the OS image decoder (Chromium can't render them). */
   private osDecodeIds: Set<string>;
 
+  /**
+   * Source modification times already processed in this session.
+   * This prevents a thumbnail from being regenerated repeatedly if filesystem
+   * timestamp semantics (notably ctime on Linux/network mounts) make the
+   * on-disk freshness check unreliable.
+   */
+  private generatedSourceMtimes = new Map<string, number>();
+
   constructor(private exifIO: ExifIO) {
     this.tifLoader = new TifLoader();
     this.exrLoader = new ExrLoader();
@@ -173,8 +181,19 @@ class ImageLoader {
 
     if (await fse.pathExists(thumbnailPath)) {
       const fileStats = await fse.stat(absolutePath);
+      const sourceMtime = fileStats.mtimeMs;
+
+      // If this exact source version was already generated in this session,
+      // trust that result instead of repeatedly decoding it.
+      if (this.generatedSourceMtimes.get(file.id) === sourceMtime) {
+        return false;
+      }
+
       const thumbStats = await fse.stat(thumbnailPath);
-      if (fileStats.mtime < thumbStats.ctime || fileStats.mtime.getTime() > Date.now()) {
+      // Compare modification times rather than ctime. ctime is inode metadata
+      // change time and is not a reliable indication of thumbnail freshness on
+      // every filesystem.
+      if (thumbStats.mtimeMs >= sourceMtime || sourceMtime > Date.now()) {
         return false;
       }
     }
@@ -240,6 +259,9 @@ class ImageLoader {
         await this.generatePlaceholderThumbnail(extension, thumbnailPath);
         updateThumbnailPath(file, thumbnailPath);
     }
+    // Remember the source version only after successful generation/handling.
+    const completedSourceStats = await fse.stat(absolutePath);
+    this.generatedSourceMtimes.set(file.id, completedSourceStats.mtimeMs);
     return true;
   }
 
