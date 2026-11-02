@@ -90,7 +90,7 @@ const FolderNode = ({
 };
 
 const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
-  const { uiStore } = useStore();
+  const { uiStore, fileStore } = useStore();
   const [rootDirectory, setRootDirectory] = useState<string>();
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
