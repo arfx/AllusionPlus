@@ -96,6 +96,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
   const [includeSubfolders, setIncludeSubfolders] = useState(uiStore.explorerIncludeSubfolders);
+  const [directoryRefreshVersion, setDirectoryRefreshVersion] = useState(0);
   const scanId = useRef(0);
 
   const readDirectory = useCallback(async (absolutePath: string) => {
@@ -123,6 +124,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       setRootDirectory(absolutePath);
       uiStore.setExplorerRootDirectory(absolutePath);
       uiStore.setExplorerCurrentDirectory(absolutePath);
+      setDirectoryRefreshVersion((version) => version + 1);
       setDirectories({});
       setExpandedPaths(new Set([absolutePath]));
       await readDirectory(absolutePath);
@@ -165,6 +167,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const selectDirectory = useCallback(
     (absolutePath: string) => {
       uiStore.setExplorerCurrentDirectory(absolutePath);
+      setDirectoryRefreshVersion((version) => version + 1);
       if (!directories[absolutePath] || directories[absolutePath].error) {
         void readDirectory(absolutePath);
       }
@@ -235,7 +238,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       cancelled = true;
       scanId.current += 1;
     };
-  }, [fileStore, includeSubfolders, uiStore.explorerCurrentDirectory]);
+  }, [directoryRefreshVersion, fileStore, includeSubfolders, uiStore.explorerCurrentDirectory]);
   const folderTree = rootDirectory
     ? [{
         name: rootDirectory.split(/[\\/]/).filter(Boolean).pop() || rootDirectory,
