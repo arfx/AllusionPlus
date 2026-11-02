@@ -5,7 +5,6 @@ import { IconSet } from 'widgets/icons';
 import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
-import { encodeFilePath } from '../../../../../common/fs';
 import { useStore } from '../../../contexts/StoreContext';
 import { ExplorerDirectoryEntry } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
@@ -92,7 +91,7 @@ const FolderNode = ({
 };
 
 const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
-  const { uiStore } = useStore();
+  const { uiStore, imageLoader } = useStore();
   const [rootDirectory, setRootDirectory] = useState<string>();
   const [currentDirectory, setCurrentDirectory] = useState<string>();
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
@@ -102,6 +101,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const [recursiveFiles, setRecursiveFiles] = useState<ExplorerDirectoryEntry[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string>();
+  const [thumbnailPaths, setThumbnailPaths] = useState<Record<string, string>>({});
   const scanId = useRef(0);
 
   const readDirectory = useCallback(async (absolutePath: string) => {
@@ -299,6 +299,15 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         'bmp',
         'ico',
         'svg',
+        'tif',
+        'tiff',
+        'psd',
+        'kra',
+        'exr',
+        'mp4',
+        'webm',
+        'ogg',
+        'mov',
       ]),
     [],
   );
@@ -311,6 +320,44 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       }),
     [files, imageExtensions],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    const visiblePaths = new Set(imageFiles.map((file) => file.path));
+    setThumbnailPaths((previous) => {
+      const next: Record<string, string> = {};
+      Object.entries(previous).forEach(([filePath, thumbnailPath]) => {
+        if (visiblePaths.has(filePath)) next[filePath] = thumbnailPath;
+      });
+      return next;
+    });
+
+    const generate = async () => {
+      for (const file of imageFiles) {
+        if (cancelled) return;
+        const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+        try {
+          const thumbnailPath = await imageLoader.ensureExplorerThumbnail(
+            file.path,
+            extension,
+            uiStore.thumbnailDirectory,
+            1,
+          );
+          if (!cancelled) {
+            setThumbnailPaths((previous) => ({ ...previous, [file.path]: thumbnailPath }));
+          }
+        } catch (error) {
+          // A single unsupported or damaged file must not prevent other previews.
+          console.warn('Could not generate Explorer thumbnail', file.path, error);
+        }
+      }
+    };
+
+    void generate();
+    return () => {
+      cancelled = true;
+    };
+  }, [imageFiles, imageLoader, uiStore.thumbnailDirectory]);
 
   const folderTree = useMemo(() => {
     if (!rootDirectory) {
@@ -392,7 +439,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
           <div className="explorer-image-grid">
             {imageFiles.map((file) => (
               <div className="explorer-image-item" key={file.path} title={file.path}>
-                <img src={encodeFilePath(file.path)} alt={file.name} loading="lazy" />
+                {thumbnailPaths[file.path] ? (\n                  <img src={thumbnailPaths[file.path]} alt={file.name} loading="lazy" />\n                ) : (\n                  <div className="explorer-thumbnail-loading">Generating preview…</div>\n                )}
                 <span>{file.name}</span>
               </div>
             ))}
