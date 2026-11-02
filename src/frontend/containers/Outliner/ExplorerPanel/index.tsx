@@ -68,13 +68,7 @@ const FolderNode = ({
         <div className="explorer-folder-children">
           {directory?.loading && <div className="explorer-tree-message">Loading…</div>}
           {directory?.error && (
-            <button
-              type="button"
-              className="explorer-tree-message error"
-              onClick={() => onToggle(entry)}
-            >
-              Could not read folder. Retry
-            </button>
+            <div className="explorer-tree-message error">Could not read folder. Select to retry.</div>
           )}
           {children.map((child) => (
             <FolderNode
