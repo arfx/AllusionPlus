@@ -202,7 +202,9 @@ class ImageLoader {
     switch (handlerType) {
       case 'web':
         try {
-          await generateThumbnailUsingWorker(file, thumbnailPath, true, 10000, priority);
+          await generateThumbnailUsingWorker(file, thumbnailPath, true, 10000, priority, (previewPath) => {
+            file.setPreviewThumbnailPath(previewPath);
+          });
           updateThumbnailPath(file, thumbnailPath);
         } catch (error) {
           // A low-priority queued request was deferred, not failed to decode.

@@ -72,6 +72,7 @@ export class ClientFile {
   readonly filename: string;
 
   @observable thumbnailPath: string = '';
+  @observable previewThumbnailPath: string = '';
   @observable tagSorting: FILE_TAGS_SORTING_TYPE;
 
   // Is undefined until existence check has been completed
@@ -170,6 +171,10 @@ export class ClientFile {
    */
   @computed get sortedInheritedTags(): ClientTag[] {
     return this.inheritedTags.slice(0).sort((a, b) => a.flatIndex - b.flatIndex);
+  }
+
+  @action.bound setPreviewThumbnailPath(thumbnailPath: string): void {
+    this.previewThumbnailPath = thumbnailPath;
   }
 
   @action.bound setThumbnailPath(thumbnailPath: string): void {

@@ -278,9 +278,13 @@ export const Thumbnail = observer(
     const is_pixelated = is_lowres && uiStore.upscaleMode === 'pixelated';
     const autoPlay = (galleryVideoPlaybackMode === 'auto' || hovered) ?? false;
 
+    const displaySrc = imageSource.tag === 'ready' && 'ok' in imageSource.value
+      ? src
+      : file.previewThumbnailPath || src;
+
     const props = useMemo(() => {
       const props = {
-        src: encodeFilePath(src),
+        src: encodeFilePath(displaySrc),
         'data-file-id': file.id,
         onError: handleImageError,
         style: is_pixelated ? { imageRendering: 'pixelated' as any } : {},
@@ -300,7 +304,7 @@ export const Thumbnail = observer(
           onLoad: handleLoad,
         };
       }
-    }, [autoPlay, file.id, handleImageError, handleLoad, is_pixelated, src, useVideo]);
+    }, [autoPlay, displaySrc, file.id, handleImageError, handleLoad, is_pixelated, useVideo]);
 
     if (!mounted) {
       return <span className="image-placeholder" />;

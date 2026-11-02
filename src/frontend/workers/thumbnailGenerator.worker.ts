@@ -4,98 +4,83 @@ import { thumbnailFormat, thumbnailMaxSize } from 'common/config';
 import { IThumbnailMessage, IThumbnailMessageResponse } from '../image/ThumbnailGeneration';
 
 // TODO: Merge this with the generateThumbnail func from frontend/image/utils.ts, it's duplicate code
+const QUICK_PREVIEW_MAX_SIZE = 128;
+
+const renderImageBuffer = async (
+  img: ImageBitmap,
+  width: number,
+  height: number,
+  quality: number,
+): Promise<ArrayBuffer> => {
+  const canvas = new OffscreenCanvas(width, height);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('No canvas context 2D');
+  context.imageSmoothingEnabled = width < img.width || height < img.height;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(img, 0, 0, width, height);
+  const blob = await canvas.convertToBlob({ type: `image/${thumbnailFormat}`, quality });
+  return blob.arrayBuffer();
+};
+
 const generateThumbnailData = async (
   filePath: string,
   imageBitmap?: ImageBitmap,
-): Promise<ArrayBuffer | null> => {
-  let inputBuffer = null;
-  let inputBlob = null;
-  let img = null;
-  let canvas = null;
-  let ctx2D = null;
-  let thumbBlob = null;
-  let buffer = null;
-
+): Promise<{ preview: ArrayBuffer | null; thumbnail: ArrayBuffer | null }> => {
+  let inputBuffer: Buffer | null = null;
+  let inputBlob: Blob | null = null;
+  let img: ImageBitmap | null = null;
   try {
-    if (imageBitmap !== undefined) {
-      img = imageBitmap;
-    } else {
+    if (imageBitmap !== undefined) img = imageBitmap;
+    else {
       inputBuffer = await fse.readFile(filePath);
       inputBlob = new Blob([inputBuffer]);
       img = await createImageBitmap(inputBlob);
     }
-
-    // Scale the image so that either width or height becomes `thumbnailMaxSize`
-    let width = img.width;
-    let height = img.height;
-    const isLowRes = !(width > thumbnailMaxSize || height > thumbnailMaxSize);
-    if (!isLowRes) {
-      if (img.width >= img.height) {
-        width = thumbnailMaxSize;
-        height = (thumbnailMaxSize * img.height) / img.width;
-      } else {
-        height = thumbnailMaxSize;
-        width = (thumbnailMaxSize * img.width) / img.height;
-      }
-    }
-
-    canvas = new OffscreenCanvas(width, height);
-
-    ctx2D = canvas.getContext('2d');
-    if (!ctx2D) {
-      console.warn('No canvas context 2D (should never happen)');
-      return null;
-    }
-
-    // Todo: Take into account rotation. Can be found with https://www.npmjs.com/package/node-exiftool
-
-    // TODO: Could maybe use https://www.electronjs.org/docs/api/native-image#imageresizeoptions
-
-    ctx2D.imageSmoothingEnabled = !isLowRes;
-    ctx2D.imageSmoothingQuality = !isLowRes ? 'high' : 'low';
-    ctx2D.drawImage(img, 0, 0, width, height);
-
-    thumbBlob = await canvas.convertToBlob({
-      type: `image/${thumbnailFormat}`,
-      quality: isLowRes ? 1 : 0.75,
-    });
-    // TODO: is canvas.toDataURL faster?
-    const reader = new FileReaderSync();
-    buffer = reader.readAsArrayBuffer(thumbBlob);
-    return buffer;
+    const maxEdge = Math.max(img.width, img.height);
+    const scaleTo = (maxSize: number) => {
+      const scale = Math.min(1, maxSize / maxEdge);
+      return {
+        width: Math.max(1, Math.round(img!.width * scale)),
+        height: Math.max(1, Math.round(img!.height * scale)),
+      };
+    };
+    const previewSize = scaleTo(QUICK_PREVIEW_MAX_SIZE);
+    const preview = maxEdge > QUICK_PREVIEW_MAX_SIZE
+      ? await renderImageBuffer(img, previewSize.width, previewSize.height, 0.68)
+      : null;
+    const thumbnailSize = scaleTo(thumbnailMaxSize);
+    const thumbnail = await renderImageBuffer(
+      img, thumbnailSize.width, thumbnailSize.height, maxEdge <= thumbnailMaxSize ? 1 : 0.75,
+    );
+    return { preview, thumbnail };
   } catch (error) {
     console.error('Error generating thumbnail data:', error);
-    return null;
+    return { preview: null, thumbnail: null };
   } finally {
-    // Explicit Memory Deallocation
-    if (img) {
-      try {
-        img.close();
-      } catch (e) {
-        console.warn('Failed to close ImageBitmap:', e);
-      }
-    }
-
+    try { img?.close(); } catch (error) { console.warn('Failed to close ImageBitmap:', error); }
     inputBuffer = null;
     inputBlob = null;
-    canvas = null;
-    ctx2D = null;
-    thumbBlob = null;
   }
 };
 
 const generateAndStoreThumbnail = async (
   filePath: string,
   thumbnailFilePath: string,
-  imageBitmap?: ImageBitmap,
+  imageBitmap: ImageBitmap | undefined,
+  fileId: string,
+  requestToken: number,
 ) => {
-  let thumbnailData = await generateThumbnailData(filePath, imageBitmap);
-  if (thumbnailData) {
-    await fse.outputFile(thumbnailFilePath, Buffer.from(thumbnailData));
-    return thumbnailFilePath;
+  const data = await generateThumbnailData(filePath, imageBitmap);
+  if (!data.thumbnail) return '';
+  if (data.preview) {
+    const previewPath = `${thumbnailFilePath}.preview.${thumbnailFormat}`;
+    await fse.outputFile(previewPath, Buffer.from(data.preview));
+    ctx.postMessage({
+      type: 'preview', fileId, thumbnailPath: previewPath, requestToken,
+    } satisfies IThumbnailMessageResponse);
   }
-  thumbnailData = null;
-  return '';
+  await fse.outputFile(thumbnailFilePath, Buffer.from(data.thumbnail));
+  return thumbnailFilePath;
 };
 
 // The worker context
@@ -186,6 +171,8 @@ async function processMessage(data: IThumbnailMessage) {
         filePath,
         thumbnailFilePath,
         imageBitmap,
+        fileId,
+        data.requestToken,
       );
       const response: IThumbnailMessageResponse = {
         fileId,

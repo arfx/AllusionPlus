@@ -23,6 +23,7 @@ export interface IThumbnailMessageResponse {
   thumbnailPath: string;
   success?: boolean;
   deferred?: boolean;
+  type?: 'preview';
   requestToken: number;
 }
 
@@ -48,6 +49,7 @@ export class ThumbnailRequestDeferredError extends Error {
 }
 
 type Callback = (success: boolean, deferred?: boolean) => void;
+type PreviewCallback = (thumbnailPath: string) => void;
 /** Callbacks waiting for a thumbnail request to finish. */
 const listeners = new Map<ID, Callback[]>();
 /** The worker currently responsible for each request (including queued requests). */
@@ -75,6 +77,7 @@ const thumbnailDiagnostics: ThumbnailDiagnostics = {
   lastDurationMs: 0,
 };
 const requestStartedAt = new Map<ID, number>();
+const previewListeners = new Map<ID, PreviewCallback[]>();
 
 export const getThumbnailDiagnostics = (): ThumbnailDiagnostics => ({ ...thumbnailDiagnostics });
 
@@ -109,6 +112,7 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number, defe
     else if (success) thumbnailDiagnostics.succeeded++;
     else thumbnailDiagnostics.failed++;
   }
+  previewListeners.delete(fileId);
   const callbacks = listeners.get(fileId);
   if (callbacks) {
     callbacks.forEach((callback) => callback(success, deferred));
@@ -128,6 +132,7 @@ export const generateThumbnailUsingWorker = action(
     timeoutReject = true,
     timeout = 10000,
     priority = 0,
+    onPreview?: PreviewCallback,
   ) => {
     const msg: IThumbnailMessage = {
       filePath: file.absolutePath,
@@ -142,6 +147,11 @@ export const generateThumbnailUsingWorker = action(
       // Reuse an in-flight request instead of starting another timer or worker job.
       const existingListeners = listeners.get(file.id);
       if (existingListeners) {
+        if (onPreview) {
+          const callbacks = previewListeners.get(file.id) ?? [];
+          callbacks.push(onPreview);
+          previewListeners.set(file.id, callbacks);
+        }
         existingListeners.push((success, deferred) =>
           success ? resolve() : reject(deferred ? new ThumbnailRequestDeferredError() : undefined),
         );
@@ -163,6 +173,7 @@ export const generateThumbnailUsingWorker = action(
       thumbnailDiagnostics.inFlight++;
       requestStartedAt.set(msg.fileId, Date.now());
 
+      if (onPreview) previewListeners.set(msg.fileId, [onPreview]);
       listeners.set(msg.fileId, [
         (success, deferred) =>
           success ? resolve() : reject(deferred ? new ThumbnailRequestDeferredError() : undefined),
@@ -234,6 +245,11 @@ export const useWorkerListener = () => {
     const attachListeners = (workerIndex: number) => {
       const worker = workers[workerIndex];
       worker.onmessage = (e: { data: IThumbnailMessageResponse }) => {
+        if (e.data.type === 'preview') {
+          previewListeners.get(e.data.fileId)?.forEach((callback) => callback(e.data.thumbnailPath));
+          return;
+        }
+        previewListeners.delete(e.data.fileId);
         finishRequest(
           e.data.fileId,
           e.data.success !== false,
