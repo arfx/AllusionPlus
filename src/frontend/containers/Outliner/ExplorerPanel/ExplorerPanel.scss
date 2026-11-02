@@ -165,3 +165,13 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+.explorer-thumbnail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 112px;
+  background: rgba(128, 128, 128, 0.08);
+  opacity: 0.6;
+  font-size: 0.8em;
+}
