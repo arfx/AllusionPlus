@@ -17,6 +17,9 @@ export const PLACEHOLDER_STYLE: Record<string, PlaceholderStyle> = {
   opus: { bg: '#1a1028', accent: '#8b5cf6', label: 'AUDIO' },
   wma: { bg: '#1a1028', accent: '#8b5cf6', label: 'AUDIO' },
   blend: { bg: '#1a1100', accent: '#e87d0d', label: 'BLEND' },
+  pdf: { bg: '#281414', accent: '#ef4444', label: 'PDF' },
+  cbz: { bg: '#14202a', accent: '#38bdf8', label: 'COMIC' },
+  cbr: { bg: '#14202a', accent: '#38bdf8', label: 'COMIC' },
 };
 
 export const DEFAULT_PLACEHOLDER_STYLE: PlaceholderStyle = {
