@@ -264,9 +264,9 @@ class ImageLoader {
     try {
       const entries = await zip.entries();
       const imageEntries = Object.values(entries)
-        .filter((entry) => entry.isFile && /\\.(png|jpe?g|webp|bmp|gif)$/i.test(entry.name))
+        .filter((entry) => entry.isFile && /\.(png|jpe?g|webp|bmp|gif)$/i.test(entry.name))
         .sort((a, b) => {
-          const priorityOf = (name: string) => /(^|\\/)(cover|front|folder)(\\.|$)/i.test(name) ? 0 : 1;
+          const priorityOf = (name: string) => /(^|\/)(cover|front|folder)(\.|$)/i.test(name) ? 0 : 1;
           return priorityOf(a.name) - priorityOf(b.name) || a.name.localeCompare(b.name, undefined, { numeric: true });
         });
       const cover = imageEntries[0];
