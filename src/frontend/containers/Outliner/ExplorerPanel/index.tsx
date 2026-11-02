@@ -330,7 +330,10 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     [displayLimit, imageFiles],
   );
   const visibleOtherFiles = useMemo(
-    () => files.filter((file) => !imageExtensions.has(file.name.split('.').pop()?.toLowerCase() ?? '')).slice(0, displayLimit),
+    () =>
+      files
+        .filter((file) => !imageExtensions.has(file.name.split('.').pop()?.toLowerCase() ?? ''))
+        .slice(0, displayLimit),
     [displayLimit, files, imageExtensions],
   );
   const hasMoreFiles = imageFiles.length > visibleImageFiles.length ||
@@ -469,9 +472,13 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             </Callout>
           )}
           {isScanning && (
-            <div className="explorer-scan-status">Scanning subfolders… ({files.length} files found)</div>
+            <div className="explorer-scan-status">
+              Scanning subfolders… ({files.length} files found)
+            </div>
           )}
-          {scanError && <Callout icon={IconSet.INFO}>Could not complete the scan: {scanError}</Callout>}
+          {scanError && (
+            <Callout icon={IconSet.INFO}>Could not complete the scan: {scanError}</Callout>
+          )}
           {!isScanning && !directories[currentDirectory ?? '']?.loading && files.length === 0 && (
             <Callout icon={IconSet.INFO}>This folder does not contain any files.</Callout>
           )}
