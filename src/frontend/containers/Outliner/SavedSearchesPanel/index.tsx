@@ -1,6 +1,6 @@
 import { observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
 import { IconSet } from 'widgets/icons';
@@ -23,6 +23,7 @@ import SearchItemDialog from '../../AdvancedSearch/SearchItemDialog';
 import { IExpansionState } from '../../types';
 import { createDragReorderHelper } from '../TreeItemDnD';
 import { triggerContextMenuEvent } from '../utils';
+import { ExplorerBookmark, EXPLORER_BOOKMARKS_CHANGED, getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
 
 // Tooltip info
 const enum Tooltip {
@@ -385,6 +386,67 @@ const SavedSearchesList = ({ onDelete, onEdit, onDuplicate, onReplace }: ISearch
   );
 };
 
+const FolderBookmarks = observer(() => {
+  const { uiStore } = useStore();
+  const [bookmarks, setBookmarks] = useState<ExplorerBookmark[]>(() => getExplorerBookmarks());
+  useEffect(() => {
+    const refresh = () => setBookmarks(getExplorerBookmarks());
+    window.addEventListener(EXPLORER_BOOKMARKS_CHANGED, refresh);
+    return () => window.removeEventListener(EXPLORER_BOOKMARKS_CHANGED, refresh);
+  }, []);
+  if (bookmarks.length === 0) return null;
+  return (
+    <div className="explorer-bookmarks">
+      <div className="explorer-bookmarks-heading">Folder Bookmarks</div>
+      {bookmarks.map((bookmark) => (
+        <div className="tree-content-label" key={bookmark.id} title={bookmark.path}>
+          <button
+            className="btn btn-icon"
+            onClick={() => {
+              uiStore.setExplorerCurrentDirectory(bookmark.path);
+              uiStore.setExplorerIncludeSubfolders(bookmark.includeSubfolders);
+              const expansion = uiStore.outlinerExpansion.slice();
+              expansion[1] = true;
+              uiStore.setOutlinerExpansion(expansion);
+              if (!uiStore.isOutlinerOpen) uiStore.toggleOutliner();
+            }}
+          >
+            {IconSet.FOLDER_CLOSE}
+          </button>
+          <div className="label-text">{bookmark.name}</div>
+          <button
+            className="btn btn-icon"
+            title="Edit bookmark"
+            onClick={() => {
+              const name = window.prompt('Bookmark name', bookmark.name);
+              if (name === null) return;
+              const includeSubfolders = window.confirm('Include subfolders?');
+              saveExplorerBookmarks(
+                getExplorerBookmarks().map((item) =>
+                  item.id === bookmark.id
+                    ? { ...item, name: name.trim() || item.name, includeSubfolders }
+                    : item,
+                ),
+              );
+            }}
+          >
+            {IconSet.EDIT}
+          </button>
+          <button
+            className="btn btn-icon"
+            title="Remove bookmark"
+            onClick={() =>
+              saveExplorerBookmarks(getExplorerBookmarks().filter((item) => item.id !== bookmark.id))
+            }
+          >
+            {IconSet.DELETE}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+});
+
 const SavedSearchesPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const rootStore = useStore();
   const { searchStore, uiStore } = rootStore;
@@ -430,6 +492,7 @@ const SavedSearchesPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         }
         {...props}
       >
+        <FolderBookmarks />
         <SavedSearchesList
           onEdit={setEditableSearch}
           onDelete={setDeletableSearch}
