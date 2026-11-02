@@ -5,7 +5,7 @@ import { IconSet } from 'widgets/icons';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
 import { useStore } from '../../../contexts/StoreContext';
-import { ExplorerDirectoryEntry } from '../../../../ipc/messages';
+import { ExplorerDirectoryEntry, EXPLORER_COMPUTER_ROOT } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
 import './ExplorerPanel.scss';
 
@@ -91,7 +91,6 @@ const FolderNode = ({
 
 const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const { uiStore, fileStore } = useStore();
-  const [rootDirectory, setRootDirectory] = useState<string>();
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
@@ -119,34 +118,10 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     }
   }, []);
 
-  const selectRoot = useCallback(
-    async (absolutePath: string) => {
-      setRootDirectory(absolutePath);
-      uiStore.setExplorerRootDirectory(absolutePath);
-      uiStore.setExplorerCurrentDirectory(absolutePath);
-      setDirectoryRefreshVersion((version) => version + 1);
-      setDirectories({});
-      setExpandedPaths(new Set([absolutePath]));
-      await readDirectory(absolutePath);
-    },
-    [readDirectory, uiStore],
-  );
-
   useEffect(() => {
-    let isActive = true;
-    const initialDirectory = uiStore.explorerRootDirectory;
-    const resolveInitialDirectory = initialDirectory
-      ? Promise.resolve(initialDirectory)
-      : RendererMessenger.getPath('home');
-    resolveInitialDirectory
-      .then((directory) => {
-        if (isActive) void selectRoot(directory);
-      })
-      .catch((error) => console.error('Could not resolve Explorer home directory', error));
-    return () => {
-      isActive = false;
-    };
-  }, [selectRoot, uiStore]);
+    setExpandedPaths(new Set([EXPLORER_COMPUTER_ROOT]));
+    void readDirectory(EXPLORER_COMPUTER_ROOT);
+  }, [readDirectory]);
 
   const chooseDirectory = useCallback(async () => {
     setIsChoosingDirectory(true);
@@ -155,17 +130,18 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         properties: ['openDirectory'],
       });
       if (!result.canceled && result.filePaths.length > 0) {
-        await selectRoot(result.filePaths[0]);
+        selectDirectory(result.filePaths[0]);
       }
     } catch (error) {
       console.error('Could not choose Explorer directory', error);
     } finally {
       setIsChoosingDirectory(false);
     }
-  }, [selectRoot]);
+  }, [selectDirectory]);
 
   const selectDirectory = useCallback(
     (absolutePath: string) => {
+      if (absolutePath === EXPLORER_COMPUTER_ROOT) return;
       uiStore.setExplorerCurrentDirectory(absolutePath);
       setDirectoryRefreshVersion((version) => version + 1);
       if (!directories[absolutePath] || directories[absolutePath].error) {
@@ -239,13 +215,9 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       scanId.current += 1;
     };
   }, [directoryRefreshVersion, fileStore, includeSubfolders, uiStore.explorerCurrentDirectory]);
-  const folderTree = rootDirectory
-    ? [{
-        name: rootDirectory.split(/[\\/]/).filter(Boolean).pop() || rootDirectory,
-        path: rootDirectory,
-        isDirectory: true,
-      }]
-    : [];
+  const folderTree: ExplorerDirectoryEntry[] = [
+    { name: 'Arbeitsplatz', path: EXPLORER_COMPUTER_ROOT, isDirectory: true },
+  ];
 
   return (
     <MultiSplitPane
