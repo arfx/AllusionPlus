@@ -14,6 +14,8 @@ interface MultiSplitProps {
   onUpdateExpansion: (expansion: boolean[]) => void;
   heights: number[];
   setHeights: (expansion: number[]) => void;
+  /** Reorder panels by dragging one header onto another. */
+  onReorderPanel?: (sourceId: string, targetId: string) => void;
   /** Must be of type widgets/MultiSplit/Pane */
   children: ReactNode[];
 }
@@ -24,6 +26,7 @@ const MultiSplit: React.FC<MultiSplitProps> = ({
   onUpdateExpansion,
   heights,
   setHeights,
+  onReorderPanel,
 }) => {
   const handleToggleExpansion = useCallback(
     (index: number, expand: boolean) => {
@@ -57,6 +60,7 @@ const MultiSplit: React.FC<MultiSplitProps> = ({
           isCollapsed: !expansion[index],
           height: heights[index],
           setHeight: (height: number) => handleSetHeight(index, height),
+          onReorderPanel,
           className: `${expansion[index] ? 'expanded' : ''} ${
             lastExpandedPanelIndex === index ? 'last-expanded' : ''
           } ${isOnlyExpanded ? 'only-expanded' : ''}`,
