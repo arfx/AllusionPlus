@@ -229,33 +229,44 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       const visited = new Set<string>();
       const foundFiles: ExplorerDirectoryEntry[] = [];
       let scannedDirectories = 0;
+      let lastPublishedCount = 0;
 
-      while (queueIndex < pending.length && !cancelled && scanId.current === thisScan) {
-        const directoryPath = pending[queueIndex++];
-        if (visited.has(directoryPath)) {
-          continue;
-        }
-        visited.add(directoryPath);
+      const scanWorker = async () => {
+        while (!cancelled && scanId.current === thisScan) {
+          // JavaScript runs this dequeue section synchronously, so workers
+          // cannot claim the same directory before awaiting the IPC request.
+          const directoryPath = pending[queueIndex++];
+          if (!directoryPath) return;
+          if (visited.has(directoryPath)) continue;
+          visited.add(directoryPath);
 
-        try {
-          const entries = await RendererMessenger.explorerReadDirectory(directoryPath);
-          scannedDirectories += 1;
-          entries.forEach((entry) => {
-            if (entry.isDirectory) {
-              pending.push(entry.path);
-            } else {
-              foundFiles.push(entry);
+          try {
+            const entries = await RendererMessenger.explorerReadDirectory(directoryPath);
+            if (cancelled || scanId.current !== thisScan) return;
+            scannedDirectories += 1;
+            entries.forEach((entry) => {
+              if (entry.isDirectory) {
+                pending.push(entry.path);
+              } else {
+                foundFiles.push(entry);
+              }
+            });
+            if (scannedDirectories - lastPublishedCount >= 16) {
+              lastPublishedCount = scannedDirectories;
+              setRecursiveFiles([...foundFiles]);
             }
-          });
-          if (scannedDirectories % 8 === 0) {
-            setRecursiveFiles([...foundFiles]);
+          } catch (error) {
+            if (cancelled || scanId.current !== thisScan) return;
+            // A permission-denied or disconnected folder should not stop the rest of the scan.
+            skippedDirectories += 1;
+            console.warn('Could not scan Explorer directory', directoryPath, error);
           }
-        } catch (error) {
-          // A permission-denied or disconnected folder should not stop the rest of the scan.
-          skippedDirectories += 1;
-          console.warn('Could not scan Explorer directory', directoryPath, error);
         }
-      }
+      };
+
+      // A small worker pool keeps network drives responsive without creating
+      // an IPC request for every discovered directory at once.
+      await Promise.all(Array.from({ length: 4 }, () => scanWorker()));
 
       if (!cancelled && scanId.current === thisScan) {
         setRecursiveFiles(foundFiles);
