@@ -38,6 +38,7 @@ import { RendererMessenger } from 'src/ipc/renderer';
 import { serializeDate } from 'src/backend/schemaTypes';
 
 export const FILE_STORAGE_KEY = 'Allusion_File';
+const EXPLORER_TAGS_STORAGE_KEY = 'allusion-explorer-tags';
 
 type FetchArgs = [
   OrderBy<FileDTO>, //order
@@ -1311,7 +1312,7 @@ class FileStore {
               locationId: '',
               relativePath: absolutePath,
               absolutePath,
-              tags: [],
+              tags: this.getExplorerTags(absolutePath),
               tagSorting: 'insertion',
               extraProperties: {},
               dateAdded: now,
@@ -1325,7 +1326,11 @@ class FileStore {
               height: metadata.height || 100,
               dateCreated: metadata.dateCreated,
             };
-            const file = new ClientFile(this, fileDTO, { absolutePath, autoSave: false });
+            const file = new ClientFile(this, fileDTO, {
+              absolutePath,
+              autoSave: false,
+              onChange: (changedFile) => this.saveExplorerTags(absolutePath, changedFile.tags),
+            });
             const thumbnailPath = getThumbnailPath(
               absolutePath,
               this.rootStore.uiStore.thumbnailDirectory,
@@ -1400,6 +1405,26 @@ class FileStore {
 
   getTags(ids: ID[]): Set<ClientTag> {
     return this.rootStore.tagStore.getTags(ids);
+  }
+
+  getExplorerTags(path: string): string[] {
+    try {
+      const stored = JSON.parse(localStorage.getItem(EXPLORER_TAGS_STORAGE_KEY) || '{}') as Record<string, string[]>;
+      return Array.isArray(stored[path]) ? stored[path] : [];
+    } catch {
+      return [];
+    }
+  }
+
+  saveExplorerTags(path: string, tagIds: string[]): void {
+    try {
+      const stored = JSON.parse(localStorage.getItem(EXPLORER_TAGS_STORAGE_KEY) || '{}') as Record<string, string[]>;
+      if (tagIds.length > 0) stored[path] = tagIds;
+      else delete stored[path];
+      localStorage.setItem(EXPLORER_TAGS_STORAGE_KEY, JSON.stringify(stored));
+    } catch (error) {
+      console.error('Could not persist Explorer tags', path, error);
+    }
   }
 
   addRecentlyUsedTag(tag: ClientTag): void {
