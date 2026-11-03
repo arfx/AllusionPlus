@@ -30,3 +30,5 @@ export const saveExplorerBookmarks = (bookmarks: ExplorerBookmark[]): void => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
   window.dispatchEvent(new Event(EXPLORER_BOOKMARKS_CHANGED));
 };
+
+export const EXPLORER_REVEAL_FOLDER = 'allusion-explorer-reveal-folder';
