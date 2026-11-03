@@ -223,29 +223,25 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     const target = normalizePath(targetPath).toLocaleLowerCase();
 
     const revealPath = async () => {
-      let entries = await readDirectory(EXPLORER_COMPUTER_ROOT);
-      let parentPath = EXPLORER_COMPUTER_ROOT;
-      const pathsToExpand = [EXPLORER_COMPUTER_ROOT];
-
-      while (!cancelled && revealRequest.current === requestId) {
-        const child = entries
-          .filter((entry) => entry.isDirectory)
-          .find((entry) => {
-            const candidate = normalizePath(entry.path).toLocaleLowerCase();
-            const separator = /[\\/]$/.test(entry.path) ? '' : SysPath.sep;
-            return target === candidate || target.startsWith(candidate + separator);
-          });
-        if (!child) break;
-
-        pathsToExpand.push(child.path);
-        if (normalizePath(child.path).toLocaleLowerCase() === target) break;
-
-        parentPath = child.path;
-        entries = await readDirectory(parentPath);
+      // Bookmark paths already provide the ancestry. Load each level concurrently
+      // instead of waiting for a slow parent directory before requesting its child.
+      const parsed = SysPath.parse(targetPath);
+      const rootPath = parsed.root;
+      const relative = targetPath.slice(rootPath.length).split(/[\\/]+/).filter(Boolean);
+      const ancestorPaths: string[] = [];
+      let currentPath = rootPath;
+      for (const segment of relative) {
+        currentPath = SysPath.join(currentPath, segment);
+        ancestorPaths.push(currentPath);
       }
 
+      await Promise.all([
+        readDirectory(EXPLORER_COMPUTER_ROOT),
+        ...ancestorPaths.map((path) => readDirectory(path)),
+      ]);
+
       if (!cancelled && revealRequest.current === requestId) {
-        setExpandedPaths((previous) => new Set([...previous, ...pathsToExpand]));
+        setExpandedPaths((previous) => new Set([...previous, EXPLORER_COMPUTER_ROOT, ...ancestorPaths]));
       }
     };
 
