@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useState } from 'react';
-import { Button, Checkbox, IconSet, Toggle } from 'widgets';
+import { Button, IconSet, Toggle } from 'widgets';
 import { useStore } from '../../contexts/StoreContext';
 
 // ---------------------------------------------------------------------------
@@ -30,7 +30,7 @@ export const ImageFormatPicker = observer(() => {
     <>
       <p className="settings-section-description">
         Allusion indexes every file type by default. Add extensions you want to manage here.
-        Unchecking &ldquo;Indexed&rdquo; moves that format to Excluded Items. Changes are applied
+        Removing a format moves it to Excluded Items. Changes are applied
         to active Locations immediately.
       </p>
 
@@ -53,21 +53,14 @@ export const ImageFormatPicker = observer(() => {
 
       {locationStore.managedExtensions.every((item) => item.blocked) ? (
         <p className="format-group-description">
-          No managed extensions yet &mdash; every file type is currently indexed.
+          No included managed extensions. All excluded formats are listed under Excluded Items.
         </p>
       ) : (
         <div className="managed-extension-list">
           {locationStore.managedExtensions.filter((m) => !m.blocked).map((m) => (
             <div key={m.extension} className="managed-extension-row">
               <span className="format-tag">.{m.extension}</span>
-              <Checkbox
-                checked={!m.blocked}
-                onChange={() => locationStore.toggleManagedExtension(m.extension)}
-              >
-                Indexed
-              </Checkbox>
               <Button
-                text="Remove"
                 icon={IconSet.CLOSE}
                 onClick={() => locationStore.removeManagedExtension(m.extension)}
               />
