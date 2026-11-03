@@ -228,7 +228,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       const parsed = SysPath.parse(targetPath);
       const rootPath = parsed.root;
       const relative = targetPath.slice(rootPath.length).split(/[\\/]+/).filter(Boolean);
-      const ancestorPaths: string[] = [];
+      const ancestorPaths: string[] = rootPath ? [rootPath] : [];
       let currentPath = rootPath;
       for (const segment of relative) {
         currentPath = SysPath.join(currentPath, segment);
