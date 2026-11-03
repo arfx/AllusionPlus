@@ -2,6 +2,8 @@ import { observer } from 'mobx-react-lite';
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import { useStore } from '../../contexts/StoreContext';
+import { RendererMessenger } from '../../../ipc/renderer';
+import { EXPLORER_REVEAL_FOLDER } from '../../entities/ExplorerBookmark';
 const SEARCHBAR_ID = 'toolbar-searchbar';
 
 const Searchbar = observer(() => {
@@ -83,7 +85,29 @@ const QuickSearchList = observer(() => {
   });
 
   const renderCreateOption = useRef((query: string, resetTextBox: () => void) => {
+    const isAbsolutePath = /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(query.trim());
+    const openExplorerPath = async () => {
+      const path = query.trim();
+      try {
+        await RendererMessenger.explorerReadDirectory(path);
+        resetTextBox();
+        uiStore.removeSearchCriteriaByKey('absolutePath');
+        uiStore.setExplorerCurrentDirectory(path);
+        const expansion = uiStore.outlinerExpansion.slice();
+        expansion[1] = true;
+        uiStore.setOutlinerExpansion(expansion);
+        if (!uiStore.isOutlinerOpen) uiStore.toggleOutliner();
+        window.dispatchEvent(new CustomEvent(EXPLORER_REVEAL_FOLDER, {
+          detail: { includeSubfolders: uiStore.explorerIncludeSubfolders },
+        }));
+      } catch (error) {
+        console.warn('Could not open path in Explorer', path, error);
+      }
+    };
     return [
+      ...(isAbsolutePath ? [
+        <Row id="open-folder-in-explorer-option" index={0} key="open-folder-in-explorer" value={`Open folder in Explorer: "${query}"`} onClick={() => void openExplorerPath()} icon={IconSet.FOLDER_CLOSE} />,
+      ] : []),
       <QuickExtraPropertySearchOption
         key="search-in-extra-property"
         id="search-in-extra-property-option"
@@ -94,7 +118,7 @@ const QuickSearchList = observer(() => {
       />,
       <Row
         id="search-in-path-option"
-        index={1}
+        index={isAbsolutePath ? 2 : 1}
         key="search-in-path"
         value={`Search in file paths for "${query}"`}
         onClick={() => {
