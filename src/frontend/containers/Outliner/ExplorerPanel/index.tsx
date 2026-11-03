@@ -409,7 +409,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             tooltip="Browse without adding this folder as a Location"
           />
           <ToolbarButton
-            icon={IconSet.FOLDER_CLOSE}
+            icon={IconSet.TREE_LIST}
             text="Include subfolders"
             pressed={includeSubfolders}
             onClick={() => {
