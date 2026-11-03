@@ -103,6 +103,8 @@ const isExpanded = (nodeData: ClientLocation | ClientSubLocation, treeData: ITre
   !!treeData.expansion[nodeData instanceof ClientLocation ? nodeData.id : nodeData.path];
 
 /** Add an additional / or \ in order to enforce files only in the specific directory are found, not in those starting with same name */
+const EXPLORER_FOLDER_DRAG_TYPE = 'application/x-allusion-explorer-folder';
+
 const pathAsSearchPath = (path: string) => `${path}${SysPath.sep}`;
 
 const pathCriteria = (path: string, operator: StringOperatorType = 'startsWith') =>
@@ -608,63 +610,56 @@ const LocationsPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const [excludableSubLocation, setExcludableSubLocation] = useState<ClientSubLocation>();
   const [locationToEdit, setLocationToEdit] = useState<ClientLocation | ClientSubLocation>();
 
-  // TODO: Offer option to replace child location(s) with the parent loc, so no data of imported images is lost
-  const handleChooseWatchedDir = useCallback(async () => {
-    let path: string;
-    try {
-      const { filePaths } = await RendererMessenger.showOpenDialog({
-        properties: ['openDirectory'],
-      });
-      // multi-selection is disabled which means there can be at most 1 folder
-      if (filePaths.length === 0) {
-        return;
-      }
-      path = filePaths[0];
-    } catch (error) {
-      // TODO: Show error notification.
-      console.error(error);
-      return;
-    }
-
-    // Check if the new location already exists
+  const addLocationPath = useCallback(async (path: string) => {
     const existingDir = locationStore.exists((dir) => path === dir.path);
     if (existingDir) {
-      AppToaster.show({
-        message: 'This folder has already been added as a location.',
-        timeout: 5000,
-      });
+      AppToaster.show({ message: 'This folder has already been added as a location.', timeout: 5000 });
       return;
     }
-
-    const addSeparator = (path: string) => (path.endsWith(SysPath.sep) ? path : path + SysPath.sep);
-
-    // Check if the new location is a sub-directory of an existing location
-    // add separator to prevent /foo/bar2 from being detected as parent directory of /foo/bar
-    const parentDir = locationStore.exists((dir) => path.includes(addSeparator(dir.path)));
+    const addSeparator = (value: string) => value.endsWith(SysPath.sep) ? value : value + SysPath.sep;
+    const parentDir = locationStore.exists((dir) => path.startsWith(addSeparator(dir.path)));
     if (parentDir) {
-      AppToaster.show({
-        message: 'You cannot add a location that is a sub-folder of an existing location.',
-        timeout: 5000,
-      });
+      AppToaster.show({ message: 'You cannot add a location that is a sub-folder of an existing location.', timeout: 5000 });
       return;
     }
-
-    // Check if the new location is a parent-directory of an existing location
-    // Need to add a separator at the end, otherwise the new path /foo is detected as a parent of existing location /football.
-    // - /foo/ is not a parent directory of /football
-    // - /foo/ is     a parent directory of /foo/bar
     const pathWithSeparator = addSeparator(path);
-    const childDir = locationStore.exists((dir) => dir.path.includes(pathWithSeparator));
+    const childDir = locationStore.exists((dir) => dir.path.startsWith(pathWithSeparator));
     if (childDir) {
-      AppToaster.show({
-        message: 'You cannot add a location that is a parent-folder of an existing location.',
-        timeout: 5000,
-      });
+      AppToaster.show({ message: 'You cannot add a location that is a parent-folder of an existing location.', timeout: 5000 });
       return;
     }
-
-    locationStore.create(path).then(setCreatableLocation);
+    try {
+      const location = await locationStore.create(path);
+      setCreatableLocation(location);
+    } catch (error) {
+      console.error('Could not create Library Location from Explorer folder', path, error);
+      AppToaster.show({ message: 'Could not add this folder as a location.', timeout: 5000 });
+    }
   }, [locationStore]);
+
+  const handleChooseWatchedDir = useCallback(async () => {
+    try {
+      const { filePaths } = await RendererMessenger.showOpenDialog({ properties: ['openDirectory'] });
+      if (filePaths.length > 0) await addLocationPath(filePaths[0]);
+    } catch (error) {
+      console.error('Could not choose a Library Location', error);
+    }
+  }, [addLocationPath]);
+
+  const handleExplorerFolderDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (event.dataTransfer.types.includes(EXPLORER_FOLDER_DRAG_TYPE)) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }, []);
+
+  const handleExplorerFolderDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes(EXPLORER_FOLDER_DRAG_TYPE)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const path = event.dataTransfer.getData(EXPLORER_FOLDER_DRAG_TYPE);
+    if (path) void addLocationPath(path);
+  }, [addLocationPath]);
 
   const isEmpty = locationStore.locationList.length === 0;
   // Detect file dropping and show a blue outline around location panel
@@ -696,6 +691,7 @@ const LocationsPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       }
       {...props}
     >
+      <div className="locations-drop-target" onDragOver={handleExplorerFolderDragOver} onDrop={handleExplorerFolderDrop}>
       <LocationsTree
         onDelete={setDeletableLocation}
         onExclude={setExcludableSubLocation}
@@ -729,6 +725,7 @@ const LocationsPanel = observer((props: Partial<MultiSplitPaneProps>) => {
           onClose={() => setLocationToEdit(undefined)}
         />
       )}
+      </div>
     </MultiSplitPane>
   );
 });
