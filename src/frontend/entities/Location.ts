@@ -609,10 +609,10 @@ export class ClientLocation {
     await this.worker.watch(
       directory,
       Array.from(this.blockedExtensions),
-      this.excludeAllExceptIncluded,
-      Array.from(this.includedExtensions),
       snapshotFilePath,
       this.store.PARCEL_WATCHER_BACKEND,
+      this.excludeAllExceptIncluded,
+      Array.from(this.includedExtensions),
       this.ignoredPaths,
     );
 
