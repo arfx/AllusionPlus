@@ -327,36 +327,44 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         // Read a few directories concurrently. This cuts the long serial wait
         // on deep/large trees while keeping disk and IPC pressure bounded.
         const queue = [selectedDirectory];
-        const visited = new Set<string>();
+        const visited = new Set<string>([selectedDirectory]);
         let queueIndex = 0;
         const workerCount = 4;
 
-        const scanWorker = async () => {
-          while (!cancelled && scanId.current === currentScan) {
-            const directory = queue[queueIndex++];
-            if (!directory) return;
-            if (visited.has(directory)) continue;
-            visited.add(directory);
+        // Process each wave concurrently, then enqueue the newly discovered
+        // subfolders. This avoids the serial directory-read bottleneck without
+        // creating an unbounded number of filesystem/IPC requests.
+        while (queueIndex < queue.length && !cancelled && scanId.current === currentScan) {
+          const batch = queue.slice(queueIndex, queueIndex + workerCount);
+          queueIndex += batch.length;
+          const results = await Promise.all(
+            batch.map(async (directory) => {
+              try {
+                return {
+                  directory,
+                  entries: await RendererMessenger.explorerReadDirectory(directory),
+                };
+              } catch (error) {
+                console.warn('Could not scan Explorer directory', directory, error);
+                return { directory, entries: [] as ExplorerDirectoryEntry[] };
+              }
+            }),
+          );
 
-            try {
-              const entries = await RendererMessenger.explorerReadDirectory(directory);
-              if (cancelled || scanId.current !== currentScan) return;
-              entries.forEach((entry) => {
-                if (entry.isDirectory) {
-                  if (!visited.has(entry.path)) queue.push(entry.path);
-                } else {
-                  files.push(entry.path);
+          if (cancelled || scanId.current !== currentScan) return;
+          results.forEach(({ entries }) => {
+            entries.forEach((entry) => {
+              if (entry.isDirectory) {
+                if (!visited.has(entry.path)) {
+                  visited.add(entry.path);
+                  queue.push(entry.path);
                 }
-              });
-            } catch (error) {
-              console.warn('Could not scan Explorer directory', directory, error);
-            }
-          }
-        };
-
-        await Promise.all(
-          Array.from({ length: workerCount }, () => scanWorker()),
-        );
+              } else {
+                files.push(entry.path);
+              }
+            });
+          });
+        }
       }
       if (!cancelled && scanId.current === currentScan) {
         await fileStore.setExplorerFiles(files);
