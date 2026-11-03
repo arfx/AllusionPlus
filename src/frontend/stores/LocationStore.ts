@@ -24,7 +24,7 @@ import { execSync } from 'child_process';
 import { debounce } from 'common/timeout';
 
 const PREFERENCES_STORAGE_KEY = 'location-store-preferences';
-type Preferences = { managedExtensions: ManagedExtension[] };
+type Preferences = { managedExtensions: ManagedExtension[]; excludeAllExceptIncluded?: boolean };
 
 /**
  * Seed the settings list with every format Allusion knows how to display.
@@ -69,6 +69,7 @@ class LocationStore {
   // entries marked `blocked` are skipped during scan and live watching.
   // Global option for now, needs restart. TODO: Maybe per location/sub-location?
   readonly managedExtensions = observable.array<ManagedExtension>([]);
+  @observable excludeAllExceptIncluded = false;
   private filesToUpdate: Map<string, FileStats> = new Map();
   /** Count of new files detected by the watcher awaiting a user-triggered refresh. */
   private pendingNewFiles = 0;
@@ -90,6 +91,7 @@ class LocationStore {
     try {
       const prefs = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) || '') as Preferences;
       const saved = prefs.managedExtensions ?? [];
+      this.excludeAllExceptIncluded = Boolean(prefs.excludeAllExceptIncluded);
       const savedByExtension = new Map(saved.map((entry) => [entry.extension, entry]));
       const managed = [
         ...DEFAULT_MANAGED_EXTENSIONS.map(
@@ -105,7 +107,10 @@ class LocationStore {
       runInAction(() => this.managedExtensions.replace(managed));
     } catch (e) {
       // If no preferences found, use defaults
-      runInAction(() => this.managedExtensions.replace(DEFAULT_MANAGED_EXTENSIONS.slice()));
+      runInAction(() => {
+        this.managedExtensions.replace(DEFAULT_MANAGED_EXTENSIONS.slice());
+        this.excludeAllExceptIncluded = false;
+      });
     }
     this.watcherSnapshotDirectory = await RendererMessenger.getWatcherSnapshotsDirectory();
 
@@ -140,6 +145,8 @@ class LocationStore {
             dir.subLocations,
             dir.tags,
             runInAction(() => this.blockedExtensions),
+            this.excludeAllExceptIncluded,
+            runInAction(() => this.includedExtensions),
             dir.index ?? i,
             dir.isWatchingFiles,
           ),
@@ -590,6 +597,8 @@ class LocationStore {
       location.subLocations.map((sl) => sl.serialize()),
       Array.from(location.tags, (t) => t.id),
       runInAction(() => this.blockedExtensions),
+      this.excludeAllExceptIncluded,
+      runInAction(() => this.includedExtensions),
       this.locationList.length,
       location.isWatchingFiles,
     );
@@ -708,6 +717,15 @@ class LocationStore {
     return this.managedExtensions.filter((m) => m.blocked).map((m) => m.extension);
   }
 
+  /** Extensions explicitly allowed when whitelist mode is enabled. */
+  get includedExtensions(): string[] {
+    return this.managedExtensions.filter((m) => !m.blocked).map((m) => m.extension);
+  }
+
+  @action.bound setExcludeAllExceptIncluded(enabled: boolean): void {
+    this.excludeAllExceptIncluded = enabled;
+  }
+
   /** Adds a new managed extension (indexed by default). No-op for blanks/duplicates. */
   @action.bound addManagedExtension(extension: string): void {
     const normalized = extension.trim().toLowerCase().replace(/^\.+/, '');
@@ -737,11 +755,18 @@ class LocationStore {
   @action.bound async saveManagedExtensions(removeBlockedFiles: boolean = true): Promise<void> {
     localStorage.setItem(
       PREFERENCES_STORAGE_KEY,
-      JSON.stringify({ managedExtensions: this.managedExtensions.slice() } as Preferences, null, 2),
+      JSON.stringify({
+        managedExtensions: this.managedExtensions.slice(),
+        excludeAllExceptIncluded: this.excludeAllExceptIncluded,
+      } as Preferences, null, 2),
     );
     const blocked = this.blockedExtensions;
     for (const location of this.locationList) {
-      await location.updateBlockedExtensions(blocked);
+      await location.updateBlockedExtensions(
+        blocked,
+        this.excludeAllExceptIncluded,
+        this.includedExtensions,
+      );
     }
 
     if (removeBlockedFiles && blocked.length > 0) {
