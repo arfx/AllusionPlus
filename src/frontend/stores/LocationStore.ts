@@ -370,10 +370,32 @@ class LocationStore {
 
       // Find all files that have been created (those on disk but not in DB)
       // Find all files of this location that have been removed (those in DB but not on disk anymore)
-      const { createdStats, missingFiles } = await this.backend.compareFiles(
+      const { createdStats, missingFiles: missingFilesFromDB } = await this.backend.compareFiles(
         location.id,
         diskFiles,
       );
+
+      // Files omitted by the active format filter are not merely missing from disk:
+      // they must be removed from the index, otherwise previously indexed formats
+      // remain visible after switching to whitelist mode.
+      const excludedByFormat = missingFilesFromDB.filter((file) => {
+        const extension = SysPath.extname(file.absolutePath).slice(1).toLowerCase();
+        return (
+          (extension && location.blockedExtensions.has(extension)) ||
+          (location.excludeAllExceptIncluded &&
+            (!extension || !location.includedExtensions.has(extension)))
+        );
+      });
+      if (excludedByFormat.length > 0) {
+        await this.backend.removeFiles(excludedByFormat.map((file) => file.id));
+        for (const file of excludedByFormat) {
+          this.rootStore.fileStore.removeThumbnail(file.absolutePath);
+        }
+      }
+      const missingFiles = missingFilesFromDB.filter(
+        (file) => !excludedByFormat.includes(file),
+      );
+
       const createdFiles = await Promise.all(
         createdStats.map((stats) => pathToIFile(stats, location, this.rootStore.imageLoader)),
       );
