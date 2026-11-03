@@ -13,9 +13,17 @@ export class FolderWatcherWorker {
   private snapshotFilePath?: string;
   private backend?: parcelWatcher.BackendType;
   private blockedExtensions: Set<string> = new Set();
+  private excludeAllExceptIncluded = false;
+  private includedExtensions: Set<string> = new Set();
 
-  updateBlockedExtensions(blockedExtensions: string[]) {
+  updateBlockedExtensions(
+    blockedExtensions: string[],
+    excludeAllExceptIncluded: boolean,
+    includedExtensions: string[],
+  ) {
     this.blockedExtensions = new Set(blockedExtensions);
+    this.excludeAllExceptIncluded = excludeAllExceptIncluded;
+    this.includedExtensions = new Set(includedExtensions);
   }
 
   cancel() {
@@ -48,11 +56,15 @@ export class FolderWatcherWorker {
     blockedExtensions: string[],
     snapshotFilePath: string,
     backend: parcelWatcher.BackendType,
+    excludeAllExceptIncluded: boolean,
+    includedExtensions: string[],
     ignorePaths: string[] = [],
   ): Promise<void> {
     this.isCancelled = false;
     this.backend = backend;
     this.blockedExtensions = new Set(blockedExtensions);
+    this.excludeAllExceptIncluded = excludeAllExceptIncluded;
+    this.includedExtensions = new Set(includedExtensions);
 
     directory = directory.replace(/\\/g, '/');
     snapshotFilePath = snapshotFilePath.replace(/\\/g, '/');
@@ -68,10 +80,16 @@ export class FolderWatcherWorker {
           continue;
         }
 
-        // Skip files with a blocked extension
-        const ext = SysPath.extname(event.path).toLowerCase().slice(1);
-        if (ext && this.blockedExtensions.has(ext)) {
-          continue;
+        if (event.type === 'create' || event.type === 'update') {
+          try {
+            const stats = statSync(event.path);
+            if (stats.isDirectory()) continue;
+            const ext = SysPath.extname(event.path).toLowerCase().slice(1);
+            if ((ext && this.blockedExtensions.has(ext)) ||
+              (this.excludeAllExceptIncluded && (!ext || !this.includedExtensions.has(ext)))) continue;
+          } catch (e) {
+            continue;
+          }
         }
 
         if (event.type === 'create') {
