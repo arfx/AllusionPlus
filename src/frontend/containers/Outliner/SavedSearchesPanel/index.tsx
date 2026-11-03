@@ -462,7 +462,7 @@ const FolderBookmarks = observer(({ onEdit, onDelete }: IFolderBookmarksProps) =
 
   if (bookmarks.length === 0) return null;
   return (
-    <div className="saved-folder-bookmarks" role="tree">
+    <div className="saved-folder-bookmarks" role="tree" style={{ '--level': 0 } as React.CSSProperties}>
       {bookmarks.map((bookmark) => (
         <div className="saved-folder-bookmark-item" role="treeitem" aria-level={1} key={bookmark.id}>
           <div className="label">
