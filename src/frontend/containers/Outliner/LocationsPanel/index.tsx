@@ -11,6 +11,7 @@ import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import { ITreeItem, createBranchOnKeyDown } from 'widgets/tree';
 import { RendererMessenger } from '../../../../ipc/renderer';
+import { EXPLORER_ADD_LOCATION } from '../ExplorerPanel';
 import { LocationRemoval, SubLocationExclusion } from '../../../components/RemovalAlert';
 import { AppToaster } from '../../../components/Toaster';
 import DropContext from '../../../contexts/DropContext';
@@ -636,6 +637,15 @@ const LocationsPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       AppToaster.show({ message: 'Could not add this folder as a location.', timeout: 5000 });
     }
   }, [locationStore]);
+
+  useEffect(() => {
+    const handleAddFromExplorer = (event: Event) => {
+      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
+      if (path) void addLocationPath(path);
+    };
+    window.addEventListener(EXPLORER_ADD_LOCATION, handleAddFromExplorer);
+    return () => window.removeEventListener(EXPLORER_ADD_LOCATION, handleAddFromExplorer);
+  }, [addLocationPath]);
 
   const handleChooseWatchedDir = useCallback(async () => {
     try {
