@@ -625,6 +625,8 @@ class LocationStore {
       [],
       [],
       runInAction(() => this.blockedExtensions),
+      this.excludeAllExceptIncluded,
+      runInAction(() => this.includedExtensions),
       this.locationList.length,
       true,
     );
