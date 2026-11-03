@@ -186,7 +186,16 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   }, [readDirectory]);
 
   useEffect(() => {
-    const reveal = () => setRevealVersion((version) => version + 1);
+    const reveal = (event: Event) => {
+      const detail = (event as CustomEvent<{ includeSubfolders?: boolean }>).detail;
+      if (typeof detail?.includeSubfolders === 'boolean') {
+        setIncludeSubfolders(detail.includeSubfolders);
+      }
+      // A bookmark can point to the already selected folder. Refresh anyway,
+      // otherwise the gallery can remain on the previously active Location.
+      setDirectoryRefreshVersion((version) => version + 1);
+      setRevealVersion((version) => version + 1);
+    };
     window.addEventListener(EXPLORER_REVEAL_FOLDER, reveal);
     return () => window.removeEventListener(EXPLORER_REVEAL_FOLDER, reveal);
   }, []);
@@ -315,32 +324,39 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         const entries = await RendererMessenger.explorerReadDirectory(selectedDirectory);
         files.push(...entries.filter((entry) => !entry.isDirectory).map((entry) => entry.path));
       } else {
-        // Process the queue until it is truly exhausted. The previous worker
-        // implementation could let every worker exit while another directory
-        // read was still in flight, leaving newly discovered folders unscanned.
+        // Read a few directories concurrently. This cuts the long serial wait
+        // on deep/large trees while keeping disk and IPC pressure bounded.
         const queue = [selectedDirectory];
         const visited = new Set<string>();
         let queueIndex = 0;
+        const workerCount = 4;
 
-        while (queueIndex < queue.length && !cancelled && scanId.current === currentScan) {
-          const directory = queue[queueIndex++];
-          if (!directory || visited.has(directory)) continue;
-          visited.add(directory);
+        const scanWorker = async () => {
+          while (!cancelled && scanId.current === currentScan) {
+            const directory = queue[queueIndex++];
+            if (!directory) return;
+            if (visited.has(directory)) continue;
+            visited.add(directory);
 
-          try {
-            const entries = await RendererMessenger.explorerReadDirectory(directory);
-            if (cancelled || scanId.current !== currentScan) return;
-            entries.forEach((entry) => {
-              if (entry.isDirectory) {
-                if (!visited.has(entry.path)) queue.push(entry.path);
-              } else {
-                files.push(entry.path);
-              }
-            });
-          } catch (error) {
-            console.warn('Could not scan Explorer directory', directory, error);
+            try {
+              const entries = await RendererMessenger.explorerReadDirectory(directory);
+              if (cancelled || scanId.current !== currentScan) return;
+              entries.forEach((entry) => {
+                if (entry.isDirectory) {
+                  if (!visited.has(entry.path)) queue.push(entry.path);
+                } else {
+                  files.push(entry.path);
+                }
+              });
+            } catch (error) {
+              console.warn('Could not scan Explorer directory', directory, error);
+            }
           }
-        }
+        };
+
+        await Promise.all(
+          Array.from({ length: workerCount }, () => scanWorker()),
+        );
       }
       if (!cancelled && scanId.current === currentScan) {
         await fileStore.setExplorerFiles(files);
