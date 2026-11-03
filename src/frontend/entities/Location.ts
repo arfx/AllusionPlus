@@ -247,8 +247,9 @@ export class ClientLocation {
    * Updates the blocked extension set when the user changes their preferences.
    * Called by LocationStore after saving managed extensions.
    */
-  updateBlockedExtensions(blockedExtensions: string[]): void {
+  async updateBlockedExtensions(blockedExtensions: string[]): Promise<void> {
     this.blockedExtensions = new Set(blockedExtensions);
+    await this.worker?.updateBlockedExtensions(blockedExtensions);
   }
 
   @action setBroken(state: boolean): void {
