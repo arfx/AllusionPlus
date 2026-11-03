@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import SysPath from 'path';
 
 import { IconSet } from 'widgets/icons';
+import { Menu, MenuItem, useContextMenu } from 'widgets/menus';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
 import { useStore } from '../../../contexts/StoreContext';
@@ -13,6 +14,7 @@ import { generateId } from '../../../../api/id';
 import './ExplorerPanel.scss';
 
 const EXPLORER_FOLDER_DRAG_TYPE = 'application/x-allusion-explorer-folder';
+export const EXPLORER_ADD_LOCATION = 'allusion:explorer-add-location';
 
 type DirectoryState = {
   entries: ExplorerDirectoryEntry[];
@@ -30,6 +32,7 @@ type FolderNodeProps = {
   onSelect: (path: string) => void;
   onToggle: (entry: ExplorerDirectoryEntry) => void;
   onPrime: (entry: ExplorerDirectoryEntry) => void;
+  onContextMenu: (event: React.MouseEvent<HTMLDivElement>, entry: ExplorerDirectoryEntry) => void;
 };
 
 const FolderNode = ({
@@ -41,6 +44,7 @@ const FolderNode = ({
   onSelect,
   onToggle,
   onPrime,
+  onContextMenu,
 }: FolderNodeProps) => {
   const isExpanded = expandedPaths.has(entry.path);
   const directory = directories[entry.path];
@@ -53,6 +57,7 @@ const FolderNode = ({
         className={`explorer-folder-row ${selectedPath === entry.path ? 'selected' : ''}`}
         style={{ paddingLeft: level * 14 }}
         onMouseEnter={() => onPrime(entry)}
+        onContextMenu={(event) => onContextMenu(event, entry)}
         draggable={entry.path !== EXPLORER_COMPUTER_ROOT}
         onDragStart={(event) => {
           if (entry.path === EXPLORER_COMPUTER_ROOT) { event.preventDefault(); return; }
@@ -100,6 +105,7 @@ const FolderNode = ({
               onSelect={onSelect}
               onToggle={onToggle}
               onPrime={onPrime}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
@@ -110,6 +116,7 @@ const FolderNode = ({
 
 const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const { uiStore, fileStore } = useStore();
+  const showContextMenu = useContextMenu();
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
   const pendingDirectoryReads = useRef(new Map<string, Promise<ExplorerDirectoryEntry[]>>());
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
@@ -247,6 +254,17 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       cancelled = true;
     };
   }, [readDirectory, revealVersion, uiStore.explorerCurrentDirectory]);
+
+  const handleFolderContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, entry: ExplorerDirectoryEntry) => {
+    if (entry.path === EXPLORER_COMPUTER_ROOT) return;
+    event.preventDefault();
+    event.stopPropagation();
+    showContextMenu(event.clientX, event.clientY, (
+      <Menu>
+        <MenuItem text="Add to Locations Library" icon={IconSet.PLUS} onClick={() => window.dispatchEvent(new CustomEvent(EXPLORER_ADD_LOCATION, { detail: { path: entry.path } }))} />
+      </Menu>
+    ));
+  }, [showContextMenu]);
 
   const primeFolder = useCallback((entry: ExplorerDirectoryEntry) => {
     if (!directories[entry.path] && !pendingDirectoryReads.current.has(entry.path)) {
@@ -419,6 +437,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
                 onSelect={selectDirectory}
                 onToggle={toggleFolder}
                 onPrime={primeFolder}
+                onContextMenu={handleFolderContextMenu}
               />
             ))}
           </div>
