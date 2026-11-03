@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import SysPath from 'path';
-import React, { useCallback, useReducer } from 'react';
+import React, { useCallback, useReducer, useState } from 'react';
 import { Button, IconSet } from 'widgets';
 import { ClientLocation } from '../../entities/Location';
 import { removeFromIgnoreList } from '../../stores/ignoreList';
@@ -16,6 +16,23 @@ import { useStore } from '../../contexts/StoreContext';
 
 export const ExcludedItems = observer(() => {
   const { locationStore } = useStore();
+  const [formatInput, setFormatInput] = useState('');
+
+  const handleAddExcludedFormat = useCallback(async () => {
+    const extension = formatInput.trim().toLowerCase().replace(/^\\.+/, '');
+    if (!extension) return;
+
+    const existing = locationStore.managedExtensions.find((item) => item.extension === extension);
+    if (!existing) {
+      locationStore.addManagedExtension(extension);
+      locationStore.toggleManagedExtension(extension);
+    } else if (!existing.blocked) {
+      locationStore.toggleManagedExtension(extension);
+    }
+
+    await locationStore.saveManagedExtensions(true);
+    setFormatInput('');
+  }, [formatInput, locationStore]);
 
   // ignoredPaths on a location is a plain array, so force a re-render after edits.
   const [, refresh] = useReducer((x: number) => x + 1, 0);
@@ -43,8 +60,29 @@ export const ExcludedItems = observer(() => {
       <fieldset className="format-group">
         <legend><strong>Excluded file formats</strong></legend>
         <p className="format-group-description">
-          These extensions are ignored during Location scans and live watching. Uncheck an item to include that format again.
+          Add extensions to exclude them from indexing. Existing indexed files with that extension are removed from Allusion, but remain on disk.
         </p>
+        <div className="format-add-row">
+          <input
+            type="text"
+            aria-label="File extension to exclude"
+            placeholder="e.g. tmp, psd, blend"
+            value={formatInput}
+            onChange={(e) => setFormatInput(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void handleAddExcludedFormat();
+              }
+            }}
+          />
+          <Button
+            text="Add"
+            icon={IconSet.ADD}
+            onClick={handleAddExcludedFormat}
+            disabled={formatInput.trim() === ''}
+          />
+        </div>
         {locationStore.managedExtensions.some((item) => item.blocked) ? (
           <div className="managed-extension-list">
             {locationStore.managedExtensions.filter((item) => item.blocked).map((item) => (
