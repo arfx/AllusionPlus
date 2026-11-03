@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import SysPath from 'path';
 import React, { useCallback, useReducer, useState } from 'react';
-import { Button, IconSet } from 'widgets';
+import { Button, IconSet, Toggle } from 'widgets';
 import { ClientLocation } from '../../entities/Location';
 import { removeFromIgnoreList } from '../../stores/ignoreList';
 import { useStore } from '../../contexts/StoreContext';
@@ -60,7 +60,7 @@ export const ExcludedItems = observer(() => {
       <fieldset className="format-group">
         <legend><strong>Excluded file formats</strong></legend>
         <p className="format-group-description">
-          Add extensions to exclude them from indexing. Existing indexed files with that extension are removed from Allusion, but remain on disk.
+          Add extensions to exclude them from indexing. Existing indexed files with that extension are removed from Allusion, but remain on disk. When “Exclude all” is enabled, only formats listed under File Formats are indexed.
         </p>
         <div className="format-add-row">
           <input
@@ -83,6 +83,15 @@ export const ExcludedItems = observer(() => {
             disabled={formatInput.trim() === ''}
           />
         </div>
+        <Toggle
+          checked={locationStore.excludeAllExceptIncluded}
+          onChange={async (checked) => {
+            locationStore.setExcludeAllExceptIncluded(checked);
+            await locationStore.saveManagedExtensions(true);
+          }}
+        >
+          Exclude all — only index included file formats
+        </Toggle>
         {locationStore.managedExtensions.some((item) => item.blocked) ? (
           <div className="managed-extension-list">
             {locationStore.managedExtensions.filter((item) => item.blocked).map((item) => (
