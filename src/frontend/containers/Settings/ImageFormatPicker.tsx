@@ -36,9 +36,9 @@ export const ImageFormatPicker = observer(() => {
   return (
     <>
       <p className="settings-section-description">
-        Allusion indexes every file type by default. Add an extension below and uncheck
-        &ldquo;Indexed&rdquo; to stop Allusion from importing files of that type. Changes take
-        effect after restarting the app.
+        Allusion indexes every file type by default. Add extensions you want to manage here.
+        Unchecking &ldquo;Indexed&rdquo; moves that format to Excluded Items. Changes are applied
+        to active Locations immediately.
       </p>
 
       <div className="format-add-row">
@@ -58,7 +58,7 @@ export const ImageFormatPicker = observer(() => {
         <Button text="Add" icon={IconSet.ADD} onClick={handleAdd} disabled={input.trim() === ''} />
       </div>
 
-      {locationStore.managedExtensions.length === 0 ? (
+      {locationStore.managedExtensions.every((item) => item.blocked) ? (
         <p className="format-group-description">
           No managed extensions yet &mdash; every file type is currently indexed.
         </p>
