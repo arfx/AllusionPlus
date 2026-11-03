@@ -8,7 +8,7 @@ import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSpl
 import { useStore } from '../../../contexts/StoreContext';
 import { ExplorerDirectoryEntry, EXPLORER_COMPUTER_ROOT } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
-import { getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
+import { EXPLORER_REVEAL_FOLDER, getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
 import { generateId } from '../../../../api/id';
 import './ExplorerPanel.scss';
 
@@ -116,6 +116,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
   const [includeSubfolders, setIncludeSubfolders] = useState(uiStore.explorerIncludeSubfolders);
   const [directoryRefreshVersion, setDirectoryRefreshVersion] = useState(0);
+  const [revealVersion, setRevealVersion] = useState(0);
   const scanId = useRef(0);
 
   useEffect(() => {
@@ -184,6 +185,12 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     void readDirectory(EXPLORER_COMPUTER_ROOT);
   }, [readDirectory]);
 
+  useEffect(() => {
+    const reveal = () => setRevealVersion((version) => version + 1);
+    window.addEventListener(EXPLORER_REVEAL_FOLDER, reveal);
+    return () => window.removeEventListener(EXPLORER_REVEAL_FOLDER, reveal);
+  }, []);
+
   // When a bookmark or external navigation selects a deep folder, reveal its
   // complete path in the tree instead of leaving the selected item hidden.
   const revealRequest = useRef(0);
@@ -230,7 +237,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     return () => {
       cancelled = true;
     };
-  }, [readDirectory, uiStore.explorerCurrentDirectory]);
+  }, [readDirectory, revealVersion, uiStore.explorerCurrentDirectory]);
 
   const primeFolder = useCallback((entry: ExplorerDirectoryEntry) => {
     if (!directories[entry.path] && !pendingDirectoryReads.current.has(entry.path)) {
