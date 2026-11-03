@@ -462,50 +462,54 @@ const FolderBookmarks = observer(({ onEdit, onDelete }: IFolderBookmarksProps) =
 
   if (bookmarks.length === 0) return null;
   return (
-    <div className="saved-folder-bookmarks">
+    <div className="saved-folder-bookmarks" role="tree">
       {bookmarks.map((bookmark) => (
-        <div
-          className="tree-content-label"
-          key={bookmark.id}
-          title={bookmark.path}
-          onClick={() => openBookmark(bookmark)}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            show(
-              event.clientX,
-              event.clientY,
-              <Menu>
-                <MenuItem text="Open folder" onClick={() => openBookmark(bookmark)} icon={IconSet.FOLDER_CLOSE} />
-                <MenuItem text="Edit" onClick={() => onEdit(bookmark)} icon={IconSet.EDIT} />
-                <MenuItem text="Delete" onClick={() => onDelete(bookmark)} icon={IconSet.DELETE} />
-              </Menu>,
-            );
-          }}
-        >
-          {IconSet.FOLDER_CLOSE}
-          <div className="label-text">{bookmark.name}</div>
-          <button
-            className="btn btn-icon"
-            title="Edit"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onEdit(bookmark);
-            }}
-          >
-            {IconSet.EDIT}
-          </button>
-          <button
-            className="btn btn-icon"
-            title="Delete"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onDelete(bookmark);
-            }}
-          >
-            {IconSet.DELETE}
-          </button>
+        <div className="saved-folder-bookmark-item" role="treeitem" aria-level={1} key={bookmark.id}>
+          <div className="label">
+            <div className="default_caret" aria-hidden="true" style={{ visibility: 'hidden' }} />
+            <div
+              className="tree-content-label"
+              title={bookmark.path}
+              onClick={() => openBookmark(bookmark)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                show(
+                  event.clientX,
+                  event.clientY,
+                  <Menu>
+                    <MenuItem text="Open folder" onClick={() => openBookmark(bookmark)} icon={IconSet.FOLDER_CLOSE} />
+                    <MenuItem text="Edit" onClick={() => onEdit(bookmark)} icon={IconSet.EDIT} />
+                    <MenuItem text="Delete" onClick={() => onDelete(bookmark)} icon={IconSet.DELETE} />
+                  </Menu>,
+                );
+              }}
+            >
+              {IconSet.FOLDER_CLOSE}
+              <div className="label-text">{bookmark.name}</div>
+              <button
+                className="btn btn-icon"
+                title="Edit"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onEdit(bookmark);
+                }}
+              >
+                {IconSet.EDIT}
+              </button>
+              <button
+                className="btn btn-icon"
+                title="Delete"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onDelete(bookmark);
+                }}
+              >
+                {IconSet.DELETE}
+              </button>
+            </div>
+          </div>
         </div>
       ))}
     </div>
