@@ -139,6 +139,8 @@ export class ClientLocation {
    * Everything else is indexed regardless of extension.
    */
   blockedExtensions: Set<string>;
+  excludeAllExceptIncluded: boolean;
+  includedExtensions: Set<string>;
 
   /** Absolute paths loaded from .allusionignore — files and folders to skip during indexing */
   ignoredPaths: string[] = [];
@@ -160,6 +162,8 @@ export class ClientLocation {
     subLocations: SubLocationDTO[],
     tags: ID[],
     blockedExtensions: string[],
+    excludeAllExceptIncluded: boolean,
+    includedExtensions: string[],
     index: number,
     isWatchingFiles: boolean,
   ) {
@@ -168,6 +172,8 @@ export class ClientLocation {
     this.path = path;
     this.dateAdded = dateAdded;
     this.blockedExtensions = new Set(blockedExtensions);
+    this.excludeAllExceptIncluded = excludeAllExceptIncluded;
+    this.includedExtensions = new Set(includedExtensions);
     this.index = index;
     this.isWatchingFiles = isWatchingFiles;
     this.isSettingWatcher = isWatchingFiles;
@@ -247,9 +253,19 @@ export class ClientLocation {
    * Updates the blocked extension set when the user changes their preferences.
    * Called by LocationStore after saving managed extensions.
    */
-  async updateBlockedExtensions(blockedExtensions: string[]): Promise<void> {
+  async updateBlockedExtensions(
+    blockedExtensions: string[],
+    excludeAllExceptIncluded: boolean,
+    includedExtensions: string[],
+  ): Promise<void> {
     this.blockedExtensions = new Set(blockedExtensions);
-    await this.worker?.updateBlockedExtensions(blockedExtensions);
+    this.excludeAllExceptIncluded = excludeAllExceptIncluded;
+    this.includedExtensions = new Set(includedExtensions);
+    await this.worker?.updateBlockedExtensions(
+      blockedExtensions,
+      excludeAllExceptIncluded,
+      includedExtensions,
+    );
   }
 
   @action setBroken(state: boolean): void {
@@ -439,14 +455,12 @@ export class ClientLocation {
       // Skip .allusionignore entries
       if (isPathIgnored(filePath, this.ignoredPaths)) return true;
 
-      // Skip files with extensions the user has explicitly blocked
-      const ext = SysPath.extname(filePath).toLowerCase().slice(1);
-      if (ext && this.blockedExtensions.has(ext)) return true;
-
-      // For directories: always recurse (unless caught above)
+      // Directories remain traversable; format rules apply only to files.
       if (dirent?.isDirectory()) return false;
 
-      // For files: include everything (any extension, or no extension)
+      const ext = SysPath.extname(filePath).toLowerCase().slice(1);
+      if (ext && this.blockedExtensions.has(ext)) return true;
+      if (this.excludeAllExceptIncluded && (!ext || !this.includedExtensions.has(ext))) return true;
       return false;
     };
 
@@ -595,6 +609,8 @@ export class ClientLocation {
     await this.worker.watch(
       directory,
       Array.from(this.blockedExtensions),
+      this.excludeAllExceptIncluded,
+      Array.from(this.includedExtensions),
       snapshotFilePath,
       this.store.PARCEL_WATCHER_BACKEND,
       this.ignoredPaths,
