@@ -1498,6 +1498,26 @@ class UiStore {
     }
   }
 
+  /** Remove all criteria for one file field in a single update. */
+  @action.bound removeSearchCriteriaByKey(key: keyof FileDTO): void {
+    const remaining = this.searchRootGroup.children.filter(
+      (criterion) =>
+        !(criterion instanceof ClientStringSearchCriteria && criterion.key === key),
+    );
+    const removed = this.searchRootGroup.children.filter(
+      (criterion) =>
+        criterion instanceof ClientStringSearchCriteria && criterion.key === key,
+    );
+    if (removed.length === 0) return;
+    removed.forEach((criterion) => criterion.dispose());
+    this.searchRootGroup.children.replace(remaining);
+    if (this.searchRootGroup.children.length > 0) {
+      this.viewQueryContent();
+    } else {
+      this.viewAllContent();
+    }
+  }
+
   @action.bound replaceSearchCriteria(query: Exclude<ClientFileSearchCriteria, 'key'>): void {
     this.replaceSearchCriterias([query]);
     if (query instanceof ClientTagSearchCriteria) {
