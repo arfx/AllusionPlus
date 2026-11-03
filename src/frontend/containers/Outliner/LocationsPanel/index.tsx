@@ -691,7 +691,11 @@ const LocationsPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       }
       {...props}
     >
-      <div className="locations-drop-target" onDragOver={handleExplorerFolderDragOver} onDrop={handleExplorerFolderDrop}>
+      <div
+        className="locations-drop-target"
+        onDragOverCapture={handleExplorerFolderDragOver}
+        onDropCapture={handleExplorerFolderDrop}
+      >
       <LocationsTree
         onDelete={setDeletableLocation}
         onExclude={setExcludableSubLocation}
