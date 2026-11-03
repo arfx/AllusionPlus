@@ -9,6 +9,7 @@ import { ExplorerDirectoryEntry, EXPLORER_COMPUTER_ROOT } from '../../../../ipc/
 import { RendererMessenger } from '../../../../ipc/renderer';
 import { getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
 import { generateId } from '../../../../api/id';
+import { ClientStringSearchCriteria } from '../../../entities/SearchCriteria';
 import './ExplorerPanel.scss';
 
 const EXPLORER_FOLDER_DRAG_TYPE = 'application/x-allusion-explorer-folder';
@@ -196,6 +197,9 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         properties: ['openDirectory'],
       });
       if (!result.canceled && result.filePaths.length > 0) {
+        uiStore.searchCriteriaList
+          .filter((criteria) => criteria instanceof ClientStringSearchCriteria && criteria.key === 'absolutePath')
+          .forEach((criteria) => uiStore.removeSearchCriteria(criteria));
         uiStore.setExplorerCurrentDirectory(result.filePaths[0]);
         setDirectoryRefreshVersion((version) => version + 1);
         void readDirectory(result.filePaths[0]);
@@ -210,6 +214,11 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const selectDirectory = useCallback(
     (absolutePath: string) => {
       if (absolutePath === EXPLORER_COMPUTER_ROOT) return;
+      // Explorer browsing is independent from Library Location search filters.
+      // Remove path filters so the gallery shows the selected Explorer folder.
+      uiStore.searchCriteriaList
+        .filter((criteria) => criteria instanceof ClientStringSearchCriteria && criteria.key === 'absolutePath')
+        .forEach((criteria) => uiStore.removeSearchCriteria(criteria));
       uiStore.setExplorerCurrentDirectory(absolutePath);
       setDirectoryRefreshVersion((version) => version + 1);
       if (!directories[absolutePath] || directories[absolutePath].error) {
