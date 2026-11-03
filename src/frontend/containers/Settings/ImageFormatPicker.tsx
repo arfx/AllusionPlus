@@ -42,6 +42,8 @@ export const ImageFormatPicker = observer(() => {
           value={input}
           onChange={(e) => setInput(e.currentTarget.value)}
           onKeyDown={(e) => {
+            // Match the search bar: typing here must not reach global hotkeys.
+            e.stopPropagation();
             if (e.key === 'Enter') {
               e.preventDefault();
               handleAdd();
