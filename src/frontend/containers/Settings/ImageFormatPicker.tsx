@@ -12,7 +12,7 @@ import { useStore } from '../../contexts/StoreContext';
 // ---------------------------------------------------------------------------
 
 export const ImageFormatPicker = observer(() => {
-  const { locationStore, fileStore } = useStore();
+  const { locationStore } = useStore();
 
   const [input, setInput] = useState('');
   const [removeBlockedFiles, setRemoveBlockedFiles] = useState(true);
@@ -23,15 +23,8 @@ export const ImageFormatPicker = observer(() => {
   }, [input, locationStore]);
 
   const onSubmit = useCallback(async () => {
-    // Optionally purge already-indexed files whose extension is now blocked
-    if (removeBlockedFiles) {
-      for (const ext of locationStore.blockedExtensions) {
-        await fileStore.deleteFilesByExtension(ext);
-      }
-    }
-
     await locationStore.saveManagedExtensions(removeBlockedFiles);
-  }, [fileStore, locationStore, removeBlockedFiles]);
+  }, [locationStore, removeBlockedFiles]);
 
   return (
     <>
