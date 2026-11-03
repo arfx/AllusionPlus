@@ -1682,7 +1682,7 @@ class FileStore {
     localStorage.removeItem(FILE_STORAGE_KEY);
   }
 
-  @action private async removeThumbnail(path: string) {
+  @action async removeThumbnail(path: string) {
     const thumbnailPath = getThumbnailPath(path, this.rootStore.uiStore.thumbnailDirectory);
     try {
       if (await fse.pathExists(thumbnailPath)) {
