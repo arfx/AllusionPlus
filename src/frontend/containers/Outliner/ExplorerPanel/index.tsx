@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import SysPath from 'path';
 
 import { IconSet } from 'widgets/icons';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
@@ -182,6 +183,54 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     setExpandedPaths(new Set([EXPLORER_COMPUTER_ROOT]));
     void readDirectory(EXPLORER_COMPUTER_ROOT);
   }, [readDirectory]);
+
+  // When a bookmark or external navigation selects a deep folder, reveal its
+  // complete path in the tree instead of leaving the selected item hidden.
+  const revealRequest = useRef(0);
+  useEffect(() => {
+    const targetPath = uiStore.explorerCurrentDirectory;
+    if (!targetPath || targetPath === EXPLORER_COMPUTER_ROOT) return;
+    const requestId = ++revealRequest.current;
+    let cancelled = false;
+
+    const normalizePath = (value: string) => {
+      const trimmed = value.replace(/[\\/]+$/, '');
+      return trimmed || (value.startsWith('/') ? '/' : value);
+    };
+    const target = normalizePath(targetPath).toLocaleLowerCase();
+
+    const revealPath = async () => {
+      let entries = await readDirectory(EXPLORER_COMPUTER_ROOT);
+      let parentPath = EXPLORER_COMPUTER_ROOT;
+      const pathsToExpand = [EXPLORER_COMPUTER_ROOT];
+
+      while (!cancelled && revealRequest.current === requestId) {
+        const child = entries
+          .filter((entry) => entry.isDirectory)
+          .find((entry) => {
+            const candidate = normalizePath(entry.path).toLocaleLowerCase();
+            const separator = /[\\/]$/.test(entry.path) ? '' : SysPath.sep;
+            return target === candidate || target.startsWith(candidate + separator);
+          });
+        if (!child) break;
+
+        pathsToExpand.push(child.path);
+        if (normalizePath(child.path).toLocaleLowerCase() === target) break;
+
+        parentPath = child.path;
+        entries = await readDirectory(parentPath);
+      }
+
+      if (!cancelled && revealRequest.current === requestId) {
+        setExpandedPaths((previous) => new Set([...previous, ...pathsToExpand]));
+      }
+    };
+
+    void revealPath().catch((error) => console.warn('Could not reveal Explorer folder path', targetPath, error));
+    return () => {
+      cancelled = true;
+    };
+  }, [readDirectory, uiStore.explorerCurrentDirectory]);
 
   const primeFolder = useCallback((entry: ExplorerDirectoryEntry) => {
     if (!directories[entry.path] && !pendingDirectoryReads.current.has(entry.path)) {
