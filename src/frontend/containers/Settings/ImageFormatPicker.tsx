@@ -61,6 +61,7 @@ export const ImageFormatPicker = observer(() => {
             <div key={m.extension} className="managed-extension-row">
               <span className="format-tag">.{m.extension}</span>
               <Button
+                text=""
                 icon={IconSet.CLOSE}
                 onClick={() => locationStore.removeManagedExtension(m.extension)}
               />
