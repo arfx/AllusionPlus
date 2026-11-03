@@ -111,7 +111,7 @@ const QuickSearchList = observer(() => {
       <QuickExtraPropertySearchOption
         key="search-in-extra-property"
         id="search-in-extra-property-option"
-        index={0}
+        index={isAbsolutePath ? 1 : 0}
         value={`Search for "${query}" in an extra property`}
         query={query}
         resetTextBox={resetTextBox}
@@ -130,7 +130,7 @@ const QuickSearchList = observer(() => {
       />,
       <Row
         id="advanced-search-option"
-        index={2}
+        index={isAbsolutePath ? 3 : 2}
         key="advanced-search"
         value="Advanced search"
         onClick={uiStore.toggleAdvancedSearch}
