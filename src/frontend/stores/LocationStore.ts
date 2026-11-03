@@ -734,15 +734,24 @@ class LocationStore {
   }
 
   /** Persists the managed extensions and pushes the blocked set to every location. */
-  @action.bound saveManagedExtensions(): void {
+  @action.bound async saveManagedExtensions(removeBlockedFiles: boolean = true): Promise<void> {
     localStorage.setItem(
       PREFERENCES_STORAGE_KEY,
       JSON.stringify({ managedExtensions: this.managedExtensions.slice() } as Preferences, null, 2),
     );
     const blocked = this.blockedExtensions;
     for (const location of this.locationList) {
-      location.updateBlockedExtensions(blocked);
+      await location.updateBlockedExtensions(blocked);
     }
+
+    if (removeBlockedFiles && blocked.length > 0) {
+      for (const extension of blocked) {
+        await this.rootStore.fileStore.deleteFilesByExtension(extension);
+      }
+    }
+
+    // Newly included formats are picked up by a normal Location refresh.
+    await this.updateLocations();
   }
 
   @action async addFile(fileStats: FileStats, location: ClientLocation): Promise<void> {
