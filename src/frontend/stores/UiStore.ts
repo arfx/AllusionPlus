@@ -1608,10 +1608,16 @@ class UiStore {
 
   @action.bound processGlobalShortCuts(e: KeyboardEvent): void {
     const target = e.target as HTMLElement | null;
-    if (
-      target?.matches('input, textarea, select, [contenteditable="true"]') ||
-      target?.closest('.searchbar')
-    ) {
+    // Global shortcuts must never consume normal typing. Use closest() so this
+    // also works when the actual event target is a child inside a rich-text editor.
+    const isTextEntry =
+      target?.isContentEditable ||
+      Boolean(
+        target?.closest(
+          'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], .searchbar',
+        ),
+      );
+    if (e.defaultPrevented || isTextEntry) {
       return;
     }
     const combo = getKeyCombo(e);
