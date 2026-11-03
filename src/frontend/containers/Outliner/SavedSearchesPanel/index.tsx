@@ -11,7 +11,7 @@ import { Callout } from 'widgets/notifications';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import Tree, { ITreeItem, createBranchOnKeyDown } from 'widgets/tree';
 import { generateId } from '../../../../api/id';
-import { ExplorerBookmark, EXPLORER_BOOKMARKS_CHANGED, getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
+import { ExplorerBookmark, EXPLORER_BOOKMARKS_CHANGED, EXPLORER_REVEAL_FOLDER, getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
 import { FolderBookmarkRemoval, SavedSearchRemoval } from '../../../components/RemovalAlert';
 import { useStore } from '../../../contexts/StoreContext';
 import { DnDSearchType, SearchDnDProvider, useSearchDnD } from '../../../contexts/TagDnDContext';
@@ -452,7 +452,9 @@ const FolderBookmarks = observer(({ onEdit, onDelete }: IFolderBookmarksProps) =
   }, []);
 
   const openBookmark = (bookmark: ExplorerBookmark) => {
+    uiStore.removeSearchCriteriaByKey('absolutePath');
     uiStore.setExplorerCurrentDirectory(bookmark.path);
+    window.dispatchEvent(new Event(EXPLORER_REVEAL_FOLDER));
     uiStore.setExplorerIncludeSubfolders(bookmark.includeSubfolders);
     const expansion = uiStore.outlinerExpansion.slice();
     expansion[1] = true;
