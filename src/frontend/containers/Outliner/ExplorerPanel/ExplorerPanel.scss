@@ -35,9 +35,13 @@
   background: var(--background-color-selected, rgba(100, 150, 220, 0.2));
 }
 
-.explorer-folder-row:hover:not(.selected) {
-  background: var(--hover-color, rgba(128, 128, 128, 0.12));
-  color: var(--text-color-strong, inherit);
+.explorer-folder-row:hover {
+  background: var(--hover-color);
+  color: var(--text-color-strong);
+}
+
+.explorer-folder-row.selected:hover {
+  filter: brightness(0.95);
 }
 
 .explorer-folder-toggle,
@@ -96,7 +100,7 @@
 
 .explorer-folder-toggle:hover,
 .explorer-folder-label:hover {
-  background: var(--hover-background, rgba(128, 128, 128, 0.12));
+  background: transparent;
 }
 
 .explorer-folder-icon {
