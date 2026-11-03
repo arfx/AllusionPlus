@@ -12,6 +12,11 @@ export class FolderWatcherWorker {
   private directory?: string;
   private snapshotFilePath?: string;
   private backend?: parcelWatcher.BackendType;
+  private blockedExtensions: Set<string> = new Set();
+
+  updateBlockedExtensions(blockedExtensions: string[]) {
+    this.blockedExtensions = new Set(blockedExtensions);
+  }
 
   cancel() {
     this.isCancelled = true;
@@ -47,6 +52,7 @@ export class FolderWatcherWorker {
   ): Promise<void> {
     this.isCancelled = false;
     this.backend = backend;
+    this.blockedExtensions = new Set(blockedExtensions);
 
     directory = directory.replace(/\\/g, '/');
     snapshotFilePath = snapshotFilePath.replace(/\\/g, '/');
@@ -64,7 +70,7 @@ export class FolderWatcherWorker {
 
         // Skip files with a blocked extension
         const ext = SysPath.extname(event.path).toLowerCase().slice(1);
-        if (ext && blockedExtensions.includes(ext)) {
+        if (ext && this.blockedExtensions.has(ext)) {
           continue;
         }
 
