@@ -453,9 +453,13 @@ const FolderBookmarks = observer(({ onEdit, onDelete }: IFolderBookmarksProps) =
 
   const openBookmark = (bookmark: ExplorerBookmark) => {
     uiStore.removeSearchCriteriaByKey('absolutePath');
-    uiStore.setExplorerCurrentDirectory(bookmark.path);
-    window.dispatchEvent(new Event(EXPLORER_REVEAL_FOLDER));
     uiStore.setExplorerIncludeSubfolders(bookmark.includeSubfolders);
+    uiStore.setExplorerCurrentDirectory(bookmark.path);
+    window.dispatchEvent(
+      new CustomEvent(EXPLORER_REVEAL_FOLDER, {
+        detail: { includeSubfolders: bookmark.includeSubfolders },
+      }),
+    );
     const expansion = uiStore.outlinerExpansion.slice();
     expansion[1] = true;
     uiStore.setOutlinerExpansion(expansion);
