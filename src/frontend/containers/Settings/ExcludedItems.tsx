@@ -40,6 +40,32 @@ export const ExcludedItems = observer(() => {
         Allusion index those files again on the next refresh.
       </p>
 
+      <fieldset className="format-group">
+        <legend><strong>Excluded file formats</strong></legend>
+        <p className="format-group-description">
+          These extensions are ignored during Location scans and live watching. Uncheck an item to include that format again.
+        </p>
+        {locationStore.managedExtensions.some((item) => item.blocked) ? (
+          <div className="managed-extension-list">
+            {locationStore.managedExtensions.filter((item) => item.blocked).map((item) => (
+              <div key={item.extension} className="managed-extension-row">
+                <span className="format-tag">.{item.extension}</span>
+                <Button
+                  text="Include"
+                  icon={IconSet.ADD}
+                  onClick={async () => {
+                    locationStore.toggleManagedExtension(item.extension);
+                    await locationStore.saveManagedExtensions(false);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="format-group-description">No excluded file formats.</p>
+        )}
+      </fieldset>
+
       {locationsWithExclusions.length === 0 ? (
         <p className="format-group-description">Nothing is excluded.</p>
       ) : (
