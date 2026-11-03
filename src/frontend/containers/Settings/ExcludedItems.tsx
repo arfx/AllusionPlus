@@ -19,7 +19,7 @@ export const ExcludedItems = observer(() => {
   const [formatInput, setFormatInput] = useState('');
 
   const handleAddExcludedFormat = useCallback(async () => {
-    const extension = formatInput.trim().toLowerCase().replace(/^\\.+/, '');
+    const extension = formatInput.trim().toLowerCase().replace(/^\.+/, '');
     if (!extension) return;
 
     const existing = locationStore.managedExtensions.find((item) => item.extension === extension);
