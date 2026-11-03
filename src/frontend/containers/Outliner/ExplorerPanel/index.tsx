@@ -11,6 +11,8 @@ import { getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/E
 import { generateId } from '../../../../api/id';
 import './ExplorerPanel.scss';
 
+const EXPLORER_FOLDER_DRAG_TYPE = 'application/x-allusion-explorer-folder';
+
 type DirectoryState = {
   entries: ExplorerDirectoryEntry[];
   loading: boolean;
@@ -50,6 +52,12 @@ const FolderNode = ({
         className={`explorer-folder-row ${selectedPath === entry.path ? 'selected' : ''}`}
         style={{ paddingLeft: level * 14 }}
         onMouseEnter={() => onPrime(entry)}
+        draggable={entry.path !== EXPLORER_COMPUTER_ROOT}
+        onDragStart={(event) => {
+          if (entry.path === EXPLORER_COMPUTER_ROOT) { event.preventDefault(); return; }
+          event.dataTransfer.setData(EXPLORER_FOLDER_DRAG_TYPE, entry.path);
+          event.dataTransfer.effectAllowed = 'copy';
+        }}
       >
         <span className="explorer-folder-toggle-slot">
           {canExpand ? (
