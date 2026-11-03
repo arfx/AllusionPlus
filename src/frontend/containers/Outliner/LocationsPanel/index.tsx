@@ -690,12 +690,9 @@ const LocationsPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         </Toolbar>
       }
       {...props}
+      onDragOverCapture={handleExplorerFolderDragOver}
+      onDropCapture={handleExplorerFolderDrop}
     >
-      <div
-        className="locations-drop-target"
-        onDragOverCapture={handleExplorerFolderDragOver}
-        onDropCapture={handleExplorerFolderDrop}
-      >
       <LocationsTree
         onDelete={setDeletableLocation}
         onExclude={setExcludableSubLocation}
@@ -729,7 +726,6 @@ const LocationsPanel = observer((props: Partial<MultiSplitPaneProps>) => {
           onClose={() => setLocationToEdit(undefined)}
         />
       )}
-      </div>
     </MultiSplitPane>
   );
 });
