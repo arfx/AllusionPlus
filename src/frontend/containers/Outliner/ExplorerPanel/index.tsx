@@ -409,6 +409,17 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
             tooltip="Browse without adding this folder as a Location"
           />
           <ToolbarButton
+            icon={IconSet.FOLDER_CLOSE}
+            text="Include subfolders"
+            pressed={includeSubfolders}
+            onClick={() => {
+              const next = !includeSubfolders;
+              setIncludeSubfolders(next);
+              uiStore.setExplorerIncludeSubfolders(next);
+            }}
+            tooltip="Include files from all subfolders"
+          />
+          <ToolbarButton
             icon={IconSet.PLUS}
             text="Bookmark folder"
             onClick={bookmarkCurrentFolder}
@@ -437,17 +448,6 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
               />
             ))}
           </div>
-          <label className="explorer-recursive-toggle">
-            <input
-              type="checkbox"
-              checked={includeSubfolders}
-              onChange={(event) => {
-                setIncludeSubfolders(event.target.checked);
-                uiStore.setExplorerIncludeSubfolders(event.target.checked);
-              }}
-            />
-            Include subfolders
-          </label>
         </aside>
       </div>
     </MultiSplitPane>
