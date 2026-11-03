@@ -1,6 +1,5 @@
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useState } from 'react';
-import { RendererMessenger } from 'src/ipc/renderer';
 import { Button, Checkbox, IconSet, Toggle } from 'widgets';
 import { useStore } from '../../contexts/StoreContext';
 
@@ -31,10 +30,7 @@ export const ImageFormatPicker = observer(() => {
       }
     }
 
-    locationStore.saveManagedExtensions();
-
-    window.alert('Allusion will restart to load your new preferences.');
-    RendererMessenger.reload();
+    await locationStore.saveManagedExtensions(removeBlockedFiles);
   }, [fileStore, locationStore, removeBlockedFiles]);
 
   return (
@@ -68,7 +64,7 @@ export const ImageFormatPicker = observer(() => {
         </p>
       ) : (
         <div className="managed-extension-list">
-          {locationStore.managedExtensions.map((m) => (
+          {locationStore.managedExtensions.filter((m) => !m.blocked).map((m) => (
             <div key={m.extension} className="managed-extension-row">
               <span className="format-tag">.{m.extension}</span>
               <Checkbox
@@ -88,7 +84,7 @@ export const ImageFormatPicker = observer(() => {
       )}
 
       <Toggle checked={removeBlockedFiles} onChange={setRemoveBlockedFiles}>
-        Remove files with blocked extensions from the library after save
+        Remove already indexed files with newly excluded formats
       </Toggle>
 
       <div className="settings-actions">
