@@ -89,14 +89,14 @@ const MultiSplitPane: React.FC<MultiSplitPaneProps> = ({
             event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
           }
-          headerProps?.onDragOver?.(event);
+          headerProps?.onDragOver?.(event as React.DragEvent<HTMLDivElement>);
         }}
         onDrop={(event) => {
           event.preventDefault();
           const sourceId = event.dataTransfer.getData('text/outliner-panel');
           if (sourceId && sourceId !== id) onReorderPanel?.(sourceId, id);
           draggedPanelId.current = null;
-          headerProps?.onDrop?.(event);
+          headerProps?.onDrop?.(event as React.DragEvent<HTMLDivElement>);
         }}
       >
         <h2
