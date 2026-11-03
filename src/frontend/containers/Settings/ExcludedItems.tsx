@@ -70,6 +70,8 @@ export const ExcludedItems = observer(() => {
             value={formatInput}
             onChange={(e) => setFormatInput(e.currentTarget.value)}
             onKeyDown={(e) => {
+              // Match the search bar: typing here must not reach global hotkeys.
+              e.stopPropagation();
               if (e.key === 'Enter') {
                 e.preventDefault();
                 void handleAddExcludedFormat();
