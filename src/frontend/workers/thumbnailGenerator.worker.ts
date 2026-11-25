@@ -5,6 +5,25 @@ import { IThumbnailMessage, IThumbnailMessageResponse } from '../image/Thumbnail
 
 // TODO: Merge this with the generateThumbnail func from frontend/image/utils.ts, it's duplicate code
 const QUICK_PREVIEW_MAX_SIZE = 128;
+
+const detectAlpha = (buffer: Buffer): boolean => {
+  if (buffer[0] === 0x89 && buffer.toString('ascii', 1, 4) === 'PNG') {
+    for (let offset = 8; offset + 25 <= buffer.length;) {
+      const length = buffer.readUInt32BE(offset);
+      const type = buffer.toString('ascii', offset + 4, offset + 8);
+      if (type === 'IHDR') return buffer[offset + 17] === 4 || buffer[offset + 17] === 6;
+      if (type === 'tRNS') return true;
+      if (type === 'IDAT' || type === 'IEND') break;
+      offset += length + 12;
+    }
+  }
+  if (buffer.toString('ascii', 0, 3) === 'GIF') return true;
+  if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
+    const chunk = buffer.toString('ascii', 12, 16);
+    return (chunk === 'VP8X' && (buffer[20] & 0x10) !== 0) || chunk === 'ALPH';
+  }
+  return false;
+};
 const thumbnailTimings = new Map<number, { decodeMs: number; encodeMs: number }>();
 
 const renderImageBuffer = async (
@@ -12,6 +31,7 @@ const renderImageBuffer = async (
   width: number,
   height: number,
   quality: number,
+  format: string,
 ): Promise<ArrayBuffer> => {
   const canvas = new OffscreenCanvas(width, height);
   const context = canvas.getContext('2d');
@@ -19,7 +39,10 @@ const renderImageBuffer = async (
   context.imageSmoothingEnabled = width < img.width || height < img.height;
   context.imageSmoothingQuality = 'high';
   context.drawImage(img, 0, 0, width, height);
-  const blob = await canvas.convertToBlob({ type: `image/${thumbnailFormat}`, quality });
+  const blob = await canvas.convertToBlob({
+    type: `image/${format}`,
+    quality: format === 'png' ? undefined : quality,
+  });
   return blob.arrayBuffer();
 };
 
@@ -30,12 +53,14 @@ const generateThumbnailData = async (
   let inputBuffer: Buffer | null = null;
   let inputBlob: Blob | null = null;
   let img: ImageBitmap | null = null;
+  let outputFormat = 'webp';
   const decodeStartedAt = performance.now();
   let decodeMs = 0;
   try {
     if (imageBitmap !== undefined) img = imageBitmap;
     else {
       inputBuffer = await fse.readFile(filePath);
+      outputFormat = detectAlpha(inputBuffer) ? 'png' : 'webp';
       inputBlob = new Blob([inputBuffer]);
       img = await createImageBitmap(inputBlob);
     }
@@ -51,11 +76,11 @@ const generateThumbnailData = async (
     };
     const previewSize = scaleTo(QUICK_PREVIEW_MAX_SIZE);
     const preview = maxEdge > QUICK_PREVIEW_MAX_SIZE
-      ? await renderImageBuffer(img, previewSize.width, previewSize.height, 0.68)
+      ? await renderImageBuffer(img, previewSize.width, previewSize.height, 0.68, outputFormat)
       : null;
     const thumbnailSize = scaleTo(thumbnailMaxSize);
     const thumbnail = await renderImageBuffer(
-      img, thumbnailSize.width, thumbnailSize.height, maxEdge <= thumbnailMaxSize ? 1 : 0.75,
+      img, thumbnailSize.width, thumbnailSize.height, maxEdge <= thumbnailMaxSize ? 1 : 0.75, outputFormat,
     );
     return { preview, thumbnail, decodeMs, encodeMs: performance.now() - encodeStartedAt };
   } catch (error) {
@@ -78,13 +103,14 @@ const generateAndStoreThumbnail = async (
 ) => {
   if (previewOnly) {
     const inputBuffer = await fse.readFile(filePath);
+    const outputFormat = detectAlpha(inputBuffer) ? 'png' : 'webp';
     const img = await createImageBitmap(new Blob([inputBuffer]));
     try {
       const maxEdge = Math.max(img.width, img.height);
       const scale = Math.min(1, QUICK_PREVIEW_MAX_SIZE / maxEdge);
       const width = Math.max(1, Math.round(img.width * scale));
       const height = Math.max(1, Math.round(img.height * scale));
-      const preview = await renderImageBuffer(img, width, height, 0.68);
+      const preview = await renderImageBuffer(img, width, height, 0.68, outputFormat);
       await fse.outputFile(thumbnailFilePath, Buffer.from(preview));
       ctx.postMessage({
         type: 'preview', fileId, thumbnailPath: thumbnailFilePath, requestToken,
@@ -98,7 +124,8 @@ const generateAndStoreThumbnail = async (
   thumbnailTimings.set(requestToken, { decodeMs: data.decodeMs, encodeMs: data.encodeMs });
   if (!data.thumbnail) return '';
   if (data.preview) {
-    const previewPath = `${thumbnailFilePath}.preview.${thumbnailFormat}`;
+    const outputFormat = thumbnailFilePath.endsWith('.png') ? 'png' : 'webp';
+    const previewPath = `${thumbnailFilePath}.preview.${outputFormat}`;
     await fse.outputFile(previewPath, Buffer.from(data.preview));
     ctx.postMessage({
       type: 'preview', fileId, thumbnailPath: previewPath, requestToken,
@@ -222,6 +249,7 @@ async function processMessage(data: IThumbnailMessage) {
         encodeMs: timing.encodeMs,
         writeMs,
         queueLength: queue.length,
+        outputFormat: thumbnailFilePath.endsWith('.png') ? 'png' : 'webp',
       };
       ctx.postMessage(response);
       curParallelThumbnails--;

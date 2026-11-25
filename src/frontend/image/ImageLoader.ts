@@ -244,8 +244,13 @@ class ImageLoader {
     const { extension, absolutePath, thumbnailPath } = {
       extension: file.extension,
       absolutePath: file.absolutePath,
-      thumbnailPath: file.thumbnailPath.split('?')[0],
+      thumbnailPath: getThumbnailPath(
+        file.absolutePath,
+        path.dirname(file.thumbnailPath.split('?')[0]),
+        `${thumbnailFormat}-v2`,
+      ),
     };
+    file.setThumbnailPath(thumbnailPath);
 
     if (await fse.pathExists(thumbnailPath)) {
       const fileStats = await fse.stat(absolutePath);

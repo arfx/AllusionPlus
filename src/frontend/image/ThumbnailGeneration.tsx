@@ -39,6 +39,7 @@ export interface IThumbnailMessageResponse {
   encodeMs?: number;
   writeMs?: number;
   queueLength?: number;
+  outputFormat?: string;
 }
 
 // TODO: Look into NativeImage operators: https://www.electronjs.org/docs/api/native-image#imageresizeoptions
@@ -106,6 +107,28 @@ const requestStartedAt = new Map<ID, number>();
 const thumbnailRequestMetadata = new Map<ID, { startedAt: number; extension: string }>();
 const queueLengthByWorker = new Map<number, number>();
 const previewListeners = new Map<ID, PreviewCallback[]>();
+
+export const cancelQueuedThumbnailsOutside = (keepPriorities: Map<ID, number>): void => {
+  for (const [fileId, request] of workerByFileId) {
+    const keepPriority = keepPriorities.get(fileId);
+    if (keepPriority !== undefined) {
+      workers[request.workerIndex].postMessage({
+        type: 'reprioritize',
+        fileId,
+        requestToken: request.requestToken,
+        priority: keepPriority,
+      });
+      recordPerfEvent('thumbnail', 'reprioritized');
+      continue;
+    }
+    recordPerfEvent('thumbnail', 'cancelRequested');
+    workers[request.workerIndex].postMessage({
+      type: 'cancel',
+      fileId,
+      requestToken: request.requestToken,
+    });
+  }
+};
 
 export const getThumbnailDiagnostics = (): ThumbnailDiagnostics => ({ ...thumbnailDiagnostics });
 
@@ -312,6 +335,7 @@ export const useWorkerListener = () => {
           if (e.data.decodeMs !== undefined) recordPerf('thumbnail.decode', e.data.decodeMs);
           if (e.data.encodeMs !== undefined) recordPerf('thumbnail.encode', e.data.encodeMs);
           if (e.data.writeMs !== undefined) recordPerf('thumbnail.write', e.data.writeMs);
+          if (e.data.outputFormat) recordPerfEvent('thumbnail', `format.${e.data.outputFormat}`);
           recordPerfEvent('thumbnail', e.data.success === false ? 'failed' : 'generated');
         }
         finishRequest(

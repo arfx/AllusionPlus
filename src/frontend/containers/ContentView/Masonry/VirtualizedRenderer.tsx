@@ -10,6 +10,7 @@ import useMountState from '../../../hooks/useMountState';
 import { MasonryCell } from '../GalleryItem';
 import { Layouter, findViewportEdge } from './layout-helpers';
 import { isFileExtensionVideo } from 'common/fs';
+import { cancelQueuedThumbnailsOutside } from '../../../image/ThumbnailGeneration';
 
 // Start loading the next page before the user reaches the end of the current one.
 const SCROLL_PAGE_PREFETCH_VIEWPORTS = 1.5;
@@ -170,6 +171,30 @@ const VirtualizedRenderer = observer(
         });
       }
     }, [fileStore]);
+
+    useEffect(() => {
+      const keepPriorities = new Map<string, number>();
+      const start = Math.max(0, startRenderIndex - 8);
+      const end = Math.min(images.length - 1, endRenderIndex + 8);
+      for (let index = start; index <= end; index++) {
+        const image = images[index];
+        if (!image) continue;
+        const isVisible = index >= visibleStartIndex && index <= visibleEndIndex;
+        keepPriorities.set(image.id, isVisible ? 4 : 2);
+      }
+      cancelQueuedThumbnailsOutside(keepPriorities);
+    }, [images, startRenderIndex, endRenderIndex, visibleStartIndex, visibleEndIndex]);
+
+    useEffect(() => {
+      if (isScrolling) {
+        const visibleIds = new Set<string>();
+        for (let index = visibleStartIndex; index <= visibleEndIndex; index++) {
+          const image = images[index];
+          if (image) visibleIds.add(image.id);
+        }
+        cancelQueuedThumbnailsOutside(new Map([...visibleIds].map((id) => [id, 4])));
+      }
+    }, [images, visibleStartIndex, visibleEndIndex, isScrolling]);
 
     const handleScroll = useCallback(() => {
       setIsScrolling(true);
