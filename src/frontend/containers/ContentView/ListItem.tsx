@@ -8,7 +8,7 @@ import { CommandDispatcher } from './Commands';
 import { Thumbnail, ThumbnailTags } from './GalleryItem';
 
 
-interface ListData {
+export interface ListData {
   files: (ClientFile | undefined)[];
   visibleStartIndex: number;
   visibleStopIndex: number;

@@ -18,12 +18,12 @@ import { OrderDirection } from '../../../api/data-storage-search';
 import { FileDTO } from '../../../api/file';
 import { useStore } from '../../contexts/StoreContext';
 import { ClientFile } from '../../entities/File';
-import { Row } from './ListItem';
+import { ListData, Row } from './ListItem';
 import { GalleryProps } from './utils';
 
 /** Generates a unique key for an element in the fileList */
-const getItemKey = action((index: number, data: (ClientFile | undefined)[]): string => {
-  const file = data[index];
+const getItemKey = action((index: number, data: ListData): string => {
+  const file = data.files[index];
   return file?.id ?? `undefined-${index}`;
 });
 
