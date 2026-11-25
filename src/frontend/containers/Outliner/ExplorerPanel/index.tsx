@@ -308,14 +308,42 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     startExplorerFolderTiming(selectedDirectory);
     const currentScan = ++scanId.current;
     let cancelled = false;
-    const files: string[] = [];
+    let chunkBuffer: string[] = [];
+    let appendTask: Promise<unknown> = Promise.resolve();
+    let fetchTaskId: number | undefined;
+    let hasRenderedFirstChunk = false;
+    let hasCommittedScan = false;
     const removeChunkListener = RendererMessenger.onExplorerScanChunk((chunk: ExplorerScanChunk) => {
       if (cancelled || chunk.scanId !== currentScan) return;
-      if (chunk.paths) files.push(...chunk.paths);
+      if (chunk.paths) {
+        chunkBuffer.push(...chunk.paths);
+        if (chunkBuffer.length >= 200) {
+          const batch = chunkBuffer.splice(0, 200);
+          const append = hasCommittedScan;
+          hasCommittedScan = true;
+          if (!hasRenderedFirstChunk) {
+            hasRenderedFirstChunk = true;
+            startExplorerVisibleTileTiming(Math.min(batch.length, 30));
+          }
+          appendTask = appendTask.then(async () => {
+            fetchTaskId = await fileStore.setExplorerFiles(batch, append, fetchTaskId);
+          });
+        }
+      }
       if (chunk.error) console.error('Could not load Explorer gallery files', chunk.error);
       if (chunk.done) {
-        startExplorerVisibleTileTiming(Math.min(files.length, 30));
-        void fileStore.setExplorerFiles(files);
+        const remaining = chunkBuffer.splice(0);
+        if (remaining.length || !hasCommittedScan) {
+          const append = hasCommittedScan;
+          hasCommittedScan = true;
+          if (!hasRenderedFirstChunk) {
+            hasRenderedFirstChunk = true;
+            startExplorerVisibleTileTiming(Math.min(remaining.length, 30));
+          }
+          appendTask = appendTask.then(async () => {
+            fetchTaskId = await fileStore.setExplorerFiles(remaining, append, fetchTaskId);
+          });
+        }
       }
     });
     RendererMessenger.startExplorerScan(selectedDirectory, includeSubfolders, currentScan);

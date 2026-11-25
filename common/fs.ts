@@ -6,13 +6,17 @@ import { thumbnailFormat } from '../common/config';
 import { IS_DEV } from './process';
 import { IMG_EXTENSIONS_TYPE } from 'src/api/file';
 
-export function getThumbnailPath(filePath: string, thumbnailDirectory: string): string {
+export function getThumbnailPath(
+  filePath: string,
+  thumbnailDirectory: string,
+  format: string = thumbnailFormat,
+): string {
   const baseFilename = path.basename(filePath, path.extname(filePath));
 
   // Hash is needed to avoid files with the same name to clash with each other, when they come from different paths
   const hash = hashString(filePath);
 
-  return path.join(thumbnailDirectory, `${baseFilename}-${hash}.${thumbnailFormat}`);
+  return path.join(thumbnailDirectory, `${baseFilename}-${hash}.${format}`);
 }
 
 /**

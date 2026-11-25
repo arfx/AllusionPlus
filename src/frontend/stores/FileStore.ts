@@ -1,4 +1,5 @@
 import fse from 'fs-extra';
+import { thumbnailFormat } from 'common/config';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 //import { setTimeout as delay } from 'node:timers/promises';
 
@@ -1304,13 +1305,17 @@ class FileStore {
    * Displays filesystem files in the normal gallery without registering them in
    * the database or associating them with a watched Location.
    */
-  @action.bound async setExplorerFiles(paths: string[]): Promise<void> {
+  @action.bound async setExplorerFiles(
+    paths: string[],
+    append = false,
+    existingTaskId?: number,
+  ): Promise<number> {
     const startedAt = performance.now();
     let statCount = 0;
     let statTotalMs = 0;
     let statMaxMs = 0;
     this.isExplorerMode = true;
-    const taskId = await this.newFetchTaskId();
+    const taskId = existingTaskId ?? await this.newFetchTaskId();
     const preparedFiles = await promiseAllLimit(
       paths.map(
         (absolutePath) => async (): Promise<ClientFile | undefined> => {
@@ -1361,6 +1366,7 @@ class FileStore {
             const thumbnailPath = getThumbnailPath(
               absolutePath,
               this.rootStore.uiStore.thumbnailDirectory,
+              `${thumbnailFormat}-v2`,
             );
             file.setThumbnailPath(thumbnailPath);
             return file;
@@ -1375,16 +1381,17 @@ class FileStore {
     const files = preparedFiles.filter((file): file is ClientFile => file !== undefined);
     if (taskId !== this.fetchTaskIdPair[0]) {
       files.forEach((file) => file.dispose());
-      return;
+      return taskId;
     }
     runInAction(() => {
-      this.clearFileList();
-      this.explorerFiles = files;
+      if (!append) this.clearFileList();
+      this.explorerFiles = append ? [...this.explorerFiles, ...files] : files;
       this.applyExplorerFiltersAndSort();
       this.fileListLastRefetch = new Date();
     });
-    this.rootStore.uiStore.clearFileSelection();
+    if (!append) this.rootStore.uiStore.clearFileSelection();
     recordPerf('explorer.prepare', performance.now() - startedAt);
+    return taskId;
   }
 
   /** Leaves the temporary Explorer view before switching to a watched Location search. */
