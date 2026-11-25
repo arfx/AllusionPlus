@@ -133,6 +133,12 @@ export const Appearance = observer(() => {
 
       <div className="vstack">
         <Toggle
+          checked={uiStore.isSlideZoomAnimationEnabled}
+          onChange={uiStore.toggleSlideZoomAnimation}
+        >
+          Animate preview zoom transition
+        </Toggle>
+        <Toggle
           checked={uiStore.isThumbnailLoadingOverlayEnabled}
           onChange={uiStore.toggleThumbnailLoadingOverlay}
         >
