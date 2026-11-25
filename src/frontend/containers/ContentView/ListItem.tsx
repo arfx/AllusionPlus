@@ -7,26 +7,40 @@ import { ClientFile } from '../../entities/File';
 import { CommandDispatcher } from './Commands';
 import { Thumbnail, ThumbnailTags } from './GalleryItem';
 
+
+interface ListData {
+  files: (ClientFile | undefined)[];
+  visibleStartIndex: number;
+  visibleStopIndex: number;
+}
+
 interface RowProps {
   index: number;
   style: CSSProperties;
-  data: (ClientFile | undefined)[];
+  data: ListData;
   isScrolling?: boolean;
 }
 
-export const Row = ({ index, style, data, isScrolling }: RowProps) => {
-  return <ListItem index={index} data={data} style={style} isScrolling={isScrolling || false} />;
-};
+export const Row = ({ index, style, data, isScrolling }: RowProps) => (
+  <ListItem
+    index={index}
+    data={data.files}
+    style={style}
+    isScrolling={isScrolling || false}
+    thumbnailPriority={index >= data.visibleStartIndex && index <= data.visibleStopIndex ? 3 : 2}
+  />
+);
 
 interface ListItemProps {
   index: number;
   data: (ClientFile | undefined)[];
   style: React.CSSProperties;
   isScrolling: boolean;
+  thumbnailPriority: number;
 }
 
 export const ListItem = observer((props: ListItemProps) => {
-  const { index, data, style, isScrolling } = props;
+  const { index, data, style, isScrolling, thumbnailPriority } = props;
   const { uiStore } = useStore();
   const row = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -61,7 +75,9 @@ export const ListItem = observer((props: ListItemProps) => {
     >
       {/* Filename */}
       <div role="gridcell" className="col-name">
-        {showData && file && <Thumbnail mounted={isMounted} file={file} />}
+        {showData && file && (
+          <Thumbnail mounted={isMounted} file={file} thumbnailPriority={thumbnailPriority} isScrolling={isScrolling} />
+        )}
         {showData && file?.name}
       </div>
 

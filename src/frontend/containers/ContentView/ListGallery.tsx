@@ -7,10 +7,11 @@ import React, {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
-import { FixedSizeList, ListOnScrollProps } from 'react-window';
+import { FixedSizeList, ListOnScrollProps, ListOnItemsRenderedProps } from 'react-window';
 
 import { debouncedThrottle } from 'common/timeout';
 import { OrderDirection } from '../../../api/data-storage-search';
@@ -29,6 +30,7 @@ const getItemKey = action((index: number, data: (ClientFile | undefined)[]): str
 const ListGallery = observer(({ contentRect, select, lastSelectionIndex }: GalleryProps) => {
   const { fileStore, uiStore } = useStore();
   const [cellSize, setCellSize] = useState(24);
+  const [visibleRange, setVisibleRange] = useState({ startIndex: 0, stopIndex: -1 });
   const ref = useRef<FixedSizeList>(null);
   const list = useRef<HTMLDivElement>(null);
 
@@ -59,6 +61,15 @@ const ListGallery = observer(({ contentRect, select, lastSelectionIndex }: Galle
       throttledScrollHandler.current(Math.round(props.scrollOffset / cellSize)),
     [cellSize],
   );
+
+  const handleItemsRendered = useCallback((range: ListOnItemsRenderedProps) => {
+    setVisibleRange({ startIndex: range.visibleStartIndex, stopIndex: range.visibleStopIndex });
+  }, []);
+  const itemData = useMemo(() => ({
+    files: fileStore.fileList,
+    visibleStartIndex: visibleRange.startIndex,
+    visibleStopIndex: visibleRange.stopIndex,
+  }), [fileStore.fileList, visibleRange]);
 
   const index = lastSelectionIndex.current;
   const fileSelectionSize = uiStore.fileSelection.size;
@@ -108,9 +119,10 @@ const ListGallery = observer(({ contentRect, select, lastSelectionIndex }: Galle
       width={contentRect.width}
       itemSize={cellSize}
       itemCount={fileStore.fileList.length}
-      itemData={fileStore.fileList}
+      itemData={itemData}
       itemKey={getItemKey}
       children={Row}
+      onItemsRendered={handleItemsRendered}
       onScroll={handleScroll}
       initialScrollOffset={uiStore.firstItemIndex * cellSize}
       ref={ref}
