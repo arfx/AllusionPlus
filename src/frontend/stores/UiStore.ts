@@ -184,6 +184,7 @@ type PersistentPreferenceFields =
   | 'isThumbnailFilenameOverlayEnabled'
   | 'isThumbnailResolutionOverlayEnabled'
   | 'isThumbnailLoadingOverlayEnabled'
+  | 'isSlideZoomAnimationEnabled'
   | 'outlinerWidth'
   | 'outlinerExpansion'
   | 'outlinerHeights'
@@ -249,6 +250,7 @@ class UiStore {
   @observable isThumbnailFilenameOverlayEnabled: boolean = false;
   @observable isThumbnailResolutionOverlayEnabled: boolean = false;
   @observable isThumbnailLoadingOverlayEnabled: boolean = true;
+  @observable isSlideZoomAnimationEnabled: boolean = true;
   /** Refresh locations and detect file changes at startup  */
   @observable isRefreshLocationsStartupEnabled: boolean = false;
   /** Whether to restore the last search query on start-up */
@@ -588,6 +590,10 @@ class UiStore {
 
   @action.bound toggleThumbnailLoadingOverlay(): void {
     this.isThumbnailLoadingOverlayEnabled = !this.isThumbnailLoadingOverlayEnabled;
+  }
+
+  @action.bound toggleSlideZoomAnimation(): void {
+    this.isSlideZoomAnimationEnabled = !this.isSlideZoomAnimationEnabled;
   }
 
   @action.bound setLargeThumbFullResThreshold(value: number): void {
@@ -1896,6 +1902,7 @@ class UiStore {
         this.isThumbnailFilenameOverlayEnabled = Boolean(prefs.isThumbnailFilenameOverlayEnabled ?? false); // eslint-disable-line prettier/prettier
         this.isThumbnailResolutionOverlayEnabled = Boolean(prefs.isThumbnailResolutionOverlayEnabled ?? false); // eslint-disable-line prettier/prettier
         this.isThumbnailLoadingOverlayEnabled = Boolean(prefs.isThumbnailLoadingOverlayEnabled ?? true);
+        this.isSlideZoomAnimationEnabled = Boolean(prefs.isSlideZoomAnimationEnabled ?? true);
         this.areFileEditorsDocked = Boolean(prefs.areFileEditorsDocked ?? false);
         this.isFileTagsEditorOpen = Boolean(prefs.isFileTagsEditorOpen ?? false);
         this.isClearTagSelectorsOnSelectEnabled = Boolean(prefs.isClearTagSelectorsOnSelectEnabled ?? false); // eslint-disable-line prettier/prettier
@@ -1989,6 +1996,7 @@ class UiStore {
       inheritedTagsVisibilityMode: this.inheritedTagsVisibilityMode,
       isThumbnailResolutionOverlayEnabled: this.isThumbnailResolutionOverlayEnabled,
       isThumbnailLoadingOverlayEnabled: this.isThumbnailLoadingOverlayEnabled,
+      isSlideZoomAnimationEnabled: this.isSlideZoomAnimationEnabled,
       outlinerExpansion: this.outlinerExpansion.slice(),
       outlinerHeights: this.outlinerHeights.slice(),
       explorerRootDirectory: this.explorerRootDirectory,
