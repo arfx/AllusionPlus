@@ -189,8 +189,10 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
           thumbnailSrc={file.thumbnailPath}
           width={width}
           height={height}
-          transitionStart={transitionStart}
-          transitionEnd={uiStore.isSlideMode ? undefined : transitionStart}
+          transitionStart={uiStore.isSlideZoomAnimationEnabled ? transitionStart : undefined}
+          transitionEnd={
+            uiStore.isSlideZoomAnimationEnabled && !uiStore.isSlideMode ? transitionStart : undefined
+          }
           onClose={uiStore.disableSlideMode}
           upscaleMode={uiStore.upscaleMode}
         />
