@@ -287,7 +287,13 @@ export const Thumbnail = observer(
       loadedSrc !== file.previewThumbnailPath
         ? file.previewThumbnailPath
         : src;
-    const loading = loadedFileId !== fileId || loadedSrc !== displaySrc;
+    // Trust the media element's decoded state as well as React's load callback.
+    // This prevents a stale component-level load flag from keeping the spinner visible
+    // after Chromium has already decoded the currently displayed thumbnail.
+    const imageElementReady = useVideo
+      ? (videoRef.current?.readyState ?? 0) >= HTMLMediaElement.HAVE_CURRENT_DATA
+      : Boolean(thumbnailRef.current?.complete && thumbnailRef.current.naturalWidth > 0);
+    const loading = !imageElementReady && (loadedFileId !== fileId || loadedSrc !== displaySrc);
 
     const handleLoad = useCallback(() => {
       if (fileIdRef.current === fileId) {
@@ -378,27 +384,20 @@ export const Thumbnail = observer(
             style={{ ...props.style, display: 'block' }}
           />
         )}
-        {loading && (
+        {uiStore.isThumbnailLoadingOverlayEnabled && loading && (
           <div
             className="image-loading"
-            data-thumbnail-state={file.previewThumbnailPath && displaySrc === file.previewThumbnailPath ? 'preview' : 'thumbnail'}
-            data-debug-file-id={fileId}
-            data-debug-loaded-file-id={loadedFileId ?? ''}
-            data-debug-display-src={displaySrc}
-            data-debug-loaded-src={loadedSrc ?? ''}
-            data-debug-image-complete={thumbnailRef.current?.complete ? 'true' : 'false'}
-            data-debug-natural-width={thumbnailRef.current?.naturalWidth ?? 0}
-            data-debug-image-current-src={thumbnailRef.current?.currentSrc ?? ''}
+            data-thumbnail-state={
+              file.previewThumbnailPath && displaySrc === file.previewThumbnailPath
+                ? 'preview'
+                : 'thumbnail'
+            }
           >
             <span className="image-loading-spinner" />
             <span className="image-loading-label">
-              {file.previewThumbnailPath && displaySrc === file.previewThumbnailPath ? 'PREVIEW' : 'THUMBNAIL'}
-            </span>
-            <span className="image-loading-debug">
-              IMG {thumbnailRef.current?.complete ? 'complete' : 'pending'} ·
-              {thumbnailRef.current?.naturalWidth ?? 0}px ·
-              FILE {loadedFileId === fileId ? 'match' : 'mismatch'} ·
-              SRC {loadedSrc === displaySrc ? 'match' : 'mismatch'}
+              {file.previewThumbnailPath && displaySrc === file.previewThumbnailPath
+                ? 'PREVIEW'
+                : 'THUMBNAIL'}
             </span>
           </div>
         )}
