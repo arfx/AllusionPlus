@@ -7,11 +7,11 @@ import { Menu, MenuItem, useContextMenu } from 'widgets/menus';
 import { Toolbar, ToolbarButton } from 'widgets/toolbar';
 import MultiSplitPane, { MultiSplitPaneProps } from 'widgets/MultiSplit/MultiSplitPane';
 import { useStore } from '../../../contexts/StoreContext';
-import { ExplorerDirectoryEntry, EXPLORER_COMPUTER_ROOT } from '../../../../ipc/messages';
+import { ExplorerDirectoryEntry, EXPLORER_COMPUTER_ROOT, ExplorerScanChunk } from '../../../../ipc/messages';
 import { RendererMessenger } from '../../../../ipc/renderer';
 import { EXPLORER_REVEAL_FOLDER, getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
 import { generateId } from '../../../../api/id';
-import { startExplorerFolderTiming } from '../../../performance/ExplorerPerf';
+import { startExplorerFolderTiming, startExplorerVisibleTileTiming } from '../../../performance/ExplorerPerf';
 import './ExplorerPanel.scss';
 
 const EXPLORER_FOLDER_DRAG_TYPE = 'application/x-allusion-explorer-folder';
@@ -91,6 +91,7 @@ const FolderNode = ({
       </div>
       {isExpanded && canExpand && (
         <div className="explorer-folder-children">
+          {!directory && <div className="explorer-tree-message">Loading…</div>}
           {directory?.loading && <div className="explorer-tree-message">Loading…</div>}
           {directory?.error && (
             <div className="explorer-tree-message error">Could not read folder. Select to retry.</div>
@@ -263,11 +264,9 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     ));
   }, [showContextMenu]);
 
-  const primeFolder = useCallback((entry: ExplorerDirectoryEntry) => {
-    if (!directories[entry.path] && !pendingDirectoryReads.current.has(entry.path)) {
-      void readDirectory(entry.path);
-    }
-  }, [directories, readDirectory]);
+  const primeFolder = useCallback((_entry: ExplorerDirectoryEntry) => {
+    // Tree children are loaded only when the disclosure control is expanded.
+  }, []);
 
   const chooseDirectory = useCallback(async () => {
     setIsChoosingDirectory(true);
@@ -334,64 +333,25 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     startExplorerFolderTiming(selectedDirectory);
     const currentScan = ++scanId.current;
     let cancelled = false;
-
-    const scan = async () => {
-      const files: string[] = [];
-      if (!includeSubfolders) {
-        const entries = await RendererMessenger.explorerReadDirectory(selectedDirectory);
-        files.push(...entries.filter((entry) => !entry.isDirectory).map((entry) => entry.path));
-      } else {
-        // Read a few directories concurrently. This cuts the long serial wait
-        // on deep/large trees while keeping disk and IPC pressure bounded.
-        const queue = [selectedDirectory];
-        const visited = new Set<string>([selectedDirectory]);
-        let queueIndex = 0;
-        const workerCount = 4;
-
-        // Process each wave concurrently, then enqueue the newly discovered
-        // subfolders. This avoids the serial directory-read bottleneck without
-        // creating an unbounded number of filesystem/IPC requests.
-        while (queueIndex < queue.length && !cancelled && scanId.current === currentScan) {
-          const batch = queue.slice(queueIndex, queueIndex + workerCount);
-          queueIndex += batch.length;
-          const results = await Promise.all(
-            batch.map(async (directory) => {
-              try {
-                return {
-                  directory,
-                  entries: await RendererMessenger.explorerReadDirectory(directory),
-                };
-              } catch (error) {
-                console.warn('Could not scan Explorer directory', directory, error);
-                return { directory, entries: [] as ExplorerDirectoryEntry[] };
-              }
-            }),
-          );
-
-          if (cancelled || scanId.current !== currentScan) return;
-          results.forEach(({ entries }) => {
-            entries.forEach((entry) => {
-              if (entry.isDirectory) {
-                if (!visited.has(entry.path)) {
-                  visited.add(entry.path);
-                  queue.push(entry.path);
-                }
-              } else {
-                files.push(entry.path);
-              }
-            });
-          });
-        }
+    const files: string[] = [];
+    const removeChunkListener = RendererMessenger.onExplorerScanChunk((chunk: ExplorerScanChunk) => {
+      if (cancelled || chunk.scanId !== currentScan) return;
+      if (chunk.paths) files.push(...chunk.paths);
+      if (chunk.error) console.error('Could not load Explorer gallery files', chunk.error);
+      if (chunk.done) {
+        void fileStore.setExplorerFiles(files).then(() => {
+          if (!cancelled && scanId.current === currentScan) {
+            startExplorerVisibleTileTiming(Math.min(files.length, 30));
+          }
+        });
       }
-      if (!cancelled && scanId.current === currentScan) {
-        await fileStore.setExplorerFiles(files);
-      }
-    };
-
-    void scan().catch((error) => console.error('Could not load Explorer gallery files', error));
+    });
+    RendererMessenger.startExplorerScan(selectedDirectory, includeSubfolders, currentScan);
     return () => {
       cancelled = true;
       scanId.current += 1;
+      RendererMessenger.cancelExplorerScan(currentScan);
+      removeChunkListener();
     };
   }, [directoryRefreshVersion, fileStore, includeSubfolders, uiStore.explorerCurrentDirectory]);
   const folderTree: ExplorerDirectoryEntry[] = [

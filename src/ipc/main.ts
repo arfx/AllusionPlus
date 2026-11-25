@@ -1,8 +1,5 @@
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 import { recordPerf } from '../../common/perf';
-
-const cancelledExplorerScans = new Set<number>();
-const activeExplorerScans = new Set<number>();
 import {
   ADD_TAGS_TO_FILE,
   CHECK_FOR_UPDATES,
@@ -67,6 +64,9 @@ import {
   WINDOW_UNMAXIMIZE,
   CONSOLE_MESSAGE,
 } from './messages';
+
+const cancelledExplorerScans = new Set<number>();
+const activeExplorerScans = new Set<number>();
 
 export class MainMessenger {
   static onceInitialized = async (): Promise<unknown> => {
