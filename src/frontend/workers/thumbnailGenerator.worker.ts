@@ -167,6 +167,19 @@ const reportDroppedRequest = (dropped: IThumbnailMessage) => {
   console.debug(`Queue full (${MAX_QUEUE_LENGTH}). Dropped request for ${dropped.filePath}.`);
 };
 
+const reportCancelledRequest = (cancelled: IThumbnailMessage) => {
+  releaseImageBitmap(cancelled);
+  // Resolve cancelled queued work immediately so the renderer can release its
+  // request slot instead of waiting for the 10-second thumbnail timeout.
+  ctx.postMessage({
+    fileId: cancelled.fileId,
+    thumbnailPath: cancelled.filePath,
+    success: false,
+    deferred: true,
+    requestToken: cancelled.requestToken,
+  } satisfies IThumbnailMessageResponse);
+};
+
 const insertIntoQueue = (data: IThumbnailMessage) => {
   // Queue priority updates pass the same message object, retaining its original timestamp.
   const priority = data.priority ?? 0;
@@ -291,8 +304,8 @@ ctx.addEventListener('message', async (event) => {
     );
     if (index !== -1) {
       const [cancelled] = queue.splice(index, 1);
-      releaseImageBitmap(cancelled);
-      console.debug(`Cancelled request for fileId: ${event.data.fileId}`);
+      reportCancelledRequest(cancelled);
+      console.debug(`Cancelled queued request for fileId: ${event.data.fileId}`);
     }
     return;
   }
