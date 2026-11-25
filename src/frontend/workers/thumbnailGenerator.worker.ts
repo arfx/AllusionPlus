@@ -193,7 +193,9 @@ async function processMessage(data: IThumbnailMessage) {
     if (curParallelThumbnails < MAX_PARALLEL_THUMBNAILS) {
       curParallelThumbnails++;
       const generationStartedAt = performance.now();
-      const queueWaitMs = data.workerEnqueuedAt === undefined ? 0 : generationStartedAt - data.workerEnqueuedAt;
+      const queueWaitMs = data.workerQueuedAt === undefined
+        ? 0
+        : Math.max(0, Date.now() - data.workerQueuedAt);
       const thumbnailPath = await generateAndStoreThumbnail(
         filePath,
         thumbnailFilePath,

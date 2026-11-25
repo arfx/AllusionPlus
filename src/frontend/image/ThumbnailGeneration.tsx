@@ -23,7 +23,7 @@ export interface IThumbnailMessage {
   requestToken: number;
   priority?: number;
   previewOnly?: boolean;
-  workerEnqueuedAt?: number;
+  workerQueuedAt?: number;
 }
 
 export interface IThumbnailMessageResponse {
@@ -255,11 +255,11 @@ export const generateThumbnailUsingWorker = action(
           }
           return;
         }
-        msg.workerEnqueuedAt = performance.now();
+        const workerQueuedAt = Date.now();
         if (transfer) {
-          workers[workerIndex].postMessage(msg, transfer);
+          workers[workerIndex].postMessage({ ...msg, workerQueuedAt }, transfer);
         } else {
-          workers[workerIndex].postMessage(msg);
+          workers[workerIndex].postMessage({ ...msg, workerQueuedAt });
         }
       };
 
