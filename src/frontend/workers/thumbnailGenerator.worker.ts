@@ -141,6 +141,7 @@ const reportDroppedRequest = (dropped: IThumbnailMessage) => {
 };
 
 const insertIntoQueue = (data: IThumbnailMessage) => {
+  // Queue priority updates pass the same message object, retaining its original timestamp.
   const priority = data.priority ?? 0;
   let insertAt = queue.findIndex((item) => (item.priority ?? 0) < priority);
   if (insertAt === -1) {
@@ -193,6 +194,8 @@ async function processMessage(data: IThumbnailMessage) {
     if (curParallelThumbnails < MAX_PARALLEL_THUMBNAILS) {
       curParallelThumbnails++;
       const generationStartedAt = performance.now();
+      // This epoch-ms timestamp originates just before the renderer's initial postMessage;
+      // don't refresh it when the same request is deferred and re-queued here.
       const queueWaitMs = data.workerQueuedAtEpochMs === undefined
         ? 0
         : Math.max(0, Date.now() - data.workerQueuedAtEpochMs);

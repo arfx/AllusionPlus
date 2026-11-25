@@ -255,11 +255,14 @@ export const generateThumbnailUsingWorker = action(
           }
           return;
         }
+        // Stamp immediately before posting, using epoch milliseconds shared with the worker.
+        // The worker keeps this original value if it has to put the request back in its queue.
         const workerQueuedAtEpochMs = Date.now();
+        const workerMessage = { ...msg, workerQueuedAtEpochMs };
         if (transfer) {
-          workers[workerIndex].postMessage({ ...msg, workerQueuedAtEpochMs }, transfer);
+          workers[workerIndex].postMessage(workerMessage, transfer);
         } else {
-          workers[workerIndex].postMessage({ ...msg, workerQueuedAtEpochMs });
+          workers[workerIndex].postMessage(workerMessage);
         }
       };
 
