@@ -139,6 +139,12 @@ export const Appearance = observer(() => {
           Animate preview zoom transition
         </Toggle>
         <Toggle
+          checked={uiStore.isSlidePreviewFitToWindowEnabled}
+          onChange={uiStore.toggleSlidePreviewFitToWindow}
+        >
+          Upscale preview images to fit window
+        </Toggle>
+        <Toggle
           checked={uiStore.isThumbnailLoadingOverlayEnabled}
           onChange={uiStore.toggleThumbnailLoadingOverlay}
         >
