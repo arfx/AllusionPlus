@@ -44,6 +44,7 @@ export interface ZoomPanProps {
 
   transitionStart?: Transform;
   transitionEnd?: Transform;
+  onTransitionComplete?: () => void;
 }
 
 export type ZoomPanState = Transform;
@@ -305,7 +306,9 @@ export default class ZoomPan extends React.Component<ZoomPanProps, ZoomPanState>
   componentDidMount() {
     const transform = getTransform(this.props);
     if (this.props.transitionStart !== undefined) {
-      this.startAnimation(animateTransform(transform, ANIMATION_SPEED * 2, this.setState));
+      this.startAnimation(
+        animateTransform(transform, ANIMATION_SPEED * 2, this.setState, this.props.onTransitionComplete),
+      );
     } else {
       this.setState(transform);
     }
@@ -336,6 +339,7 @@ type Updater = (
   updater:
     | ((state: Readonly<ZoomPanState>, props: Readonly<ZoomPanProps>) => ZoomPanState)
     | ZoomPanState,
+  callback?: () => void,
 ) => void;
 
 //// ANIMATION
@@ -445,26 +449,38 @@ function resetTransform(props: Readonly<ZoomPanProps>, setState: Updater) {
   return animateTransform(transform, ANIMATION_SPEED, setState);
 }
 
-function animateTransform(transform: Transform, speed: number, setState: Updater) {
+function animateTransform(
+  transform: Transform,
+  speed: number,
+  setState: Updater,
+  onComplete?: () => void,
+) {
   let animationHandle: number | undefined = undefined;
   const frame = () => {
-    setState((state) => {
-      const translateY = transform.top - state.top;
-      const translateX = transform.left - state.left;
-      const translateScale = transform.scale - state.scale;
-      const nextTransform = createTransform(
-        state.top + speed * translateY,
-        state.left + speed * translateX,
-        state.scale + speed * translateScale,
-      );
-      //animation runs until we reach the target
-      if (animationHandle !== undefined && !isEqualTransform(nextTransform, transform)) {
-        animationHandle = requestAnimationFrame(frame);
-        return nextTransform;
-      }
-      animationHandle = undefined;
-      return transform;
-    });
+    let completed = false;
+    setState(
+      (state) => {
+        const translateY = transform.top - state.top;
+        const translateX = transform.left - state.left;
+        const translateScale = transform.scale - state.scale;
+        const nextTransform = createTransform(
+          state.top + speed * translateY,
+          state.left + speed * translateX,
+          state.scale + speed * translateScale,
+        );
+        // Keep animating until the target is reached, then notify once after the final state commits.
+        if (animationHandle !== undefined && !isEqualTransform(nextTransform, transform)) {
+          animationHandle = requestAnimationFrame(frame);
+          return nextTransform;
+        }
+        animationHandle = undefined;
+        completed = true;
+        return transform;
+      },
+      () => {
+        if (completed) onComplete?.();
+      },
+    );
   };
   animationHandle = requestAnimationFrame(frame);
 
