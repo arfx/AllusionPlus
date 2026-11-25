@@ -157,6 +157,18 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number, defe
       currentRequest.workerIndex,
       Math.max(0, (activeRequestsByWorker.get(currentRequest.workerIndex) ?? 1) - 1),
     );
+    // Release the renderer-side worker slot for every completion path, not
+    // only normal worker responses (timeouts and video preparation failures
+    // also terminate a request).
+    queueLengthByWorker.set(
+      currentRequest.workerIndex,
+      Math.max(0, (queueLengthByWorker.get(currentRequest.workerIndex) ?? 1) - 1),
+    );
+    setPerfGauge(
+      'thumbnail',
+      'queueLength',
+      [...queueLengthByWorker.values()].reduce((sum, length) => sum + length, 0),
+    );
   }
   const startedAt = requestStartedAt.get(fileId);
   setPerfGauge('thumbnail', 'queueLength', workerByFileId.size);
@@ -325,17 +337,6 @@ export const useWorkerListener = () => {
         previewListeners.delete(e.data.fileId);
         const request = workerByFileId.get(e.data.fileId);
         if (request?.workerIndex === workerIndex) {
-          // Every terminal response releases one renderer-side worker slot,
-          // including queue drops, explicit cancellations and generation errors.
-          queueLengthByWorker.set(
-            workerIndex,
-            Math.max(0, (queueLengthByWorker.get(workerIndex) ?? 1) - 1),
-          );
-          setPerfGauge(
-            'thumbnail',
-            'queueLength',
-            [...queueLengthByWorker.values()].reduce((sum, length) => sum + length, 0),
-          );
           if (e.data.queueWaitMs !== undefined) {
             const metadata = thumbnailRequestMetadata.get(e.data.fileId);
             const totalMs = performance.now() - (metadata?.startedAt ?? performance.now());
