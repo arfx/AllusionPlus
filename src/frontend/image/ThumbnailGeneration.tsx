@@ -196,6 +196,7 @@ export const generateThumbnailUsingWorker = action(
       thumbnailDiagnostics.inFlight++;
       requestStartedAt.set(msg.fileId, performance.now());
       thumbnailRequestMetadata.set(msg.fileId, { startedAt: requestCallStartedAt, extension: file.extension });
+      recordPerfEvent('thumbnail', 'request');
 
       if (onPreview) previewListeners.set(msg.fileId, [onPreview]);
       listeners.set(msg.fileId, [
