@@ -349,12 +349,13 @@ const ZoomableImage: React.FC<ZoomableImageProps> = ({
         transitionStart={transitionStart}
         transitionEnd={transitionEnd}
         onClose={onClose}
+        onTransitionComplete={() => setOpeningTransitionComplete(true)}
         upscaleMode={upscaleMode}
       >
         {(props) => (
           <img
             {...props}
-            src={encodeFilePath(src)}
+            src={encodeFilePath(displaySrc)}
             width={dimension[0]}
             height={dimension[1]}
             alt=""
