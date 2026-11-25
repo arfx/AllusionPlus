@@ -870,20 +870,46 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
   if (absolutePath === '::allusion-explorer-computer::') {
     if (process.platform === 'win32') {
       const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+      const rootsStartedAt = performance.now();
+      const driveStatTimeoutMs = 5000;
       const roots = await Promise.all(
         letters.map(async (letter) => {
           const drivePath = `${letter}:\\`;
+          const startedAt = performance.now();
+          let timedOut = false;
+          // Observe slow drive probes without racing/cancelling stat (preserve current behavior).
+          const timeoutId = isPerfEnabled() ? setTimeout(() => {
+            timedOut = true;
+            writePerfLine(
+              `[perf] explorer.computerDrive letter=${letter} path=${drivePath} durationMs=${driveStatTimeoutMs} timeoutMs=${driveStatTimeoutMs} result=timeout pending=true`,
+            );
+          }, driveStatTimeoutMs) : undefined;
           try {
             const stats = await fse.stat(drivePath);
-            return stats.isDirectory()
+            const durationMs = performance.now() - startedAt;
+            const entry = stats.isDirectory()
               ? { name: drivePath, path: drivePath, isDirectory: true }
               : undefined;
-          } catch {
+            writePerfLine(
+              `[perf] explorer.computerDrive letter=${letter} path=${drivePath} durationMs=${durationMs.toFixed(1)} timeoutMs=${driveStatTimeoutMs} result=ok timeoutObserved=${timedOut} directory=${Boolean(entry)}`,
+            );
+            return entry;
+          } catch (error) {
+            const durationMs = performance.now() - startedAt;
+            writePerfLine(
+              `[perf] explorer.computerDrive letter=${letter} path=${drivePath} durationMs=${durationMs.toFixed(1)} timeoutMs=${driveStatTimeoutMs} result=error timeoutObserved=${timedOut} code=${(error as NodeJS.ErrnoException).code ?? 'unknown'}`,
+            );
             return undefined;
+          } finally {
+            if (timeoutId !== undefined) clearTimeout(timeoutId);
           }
         }),
       );
-      return roots.filter((entry): entry is ExplorerDirectoryEntry => entry !== undefined);
+      const availableRoots = roots.filter((entry): entry is ExplorerDirectoryEntry => entry !== undefined);
+      writePerfLine(
+        `[perf] explorer.computerDrives totalMs=${(performance.now() - rootsStartedAt).toFixed(1)} candidates=${letters.length} available=${availableRoots.length}`,
+      );
+      return availableRoots;
     }
     return [{ name: '/', path: '/', isDirectory: true }];
   }
