@@ -43,8 +43,10 @@ export interface IThumbnailMessageResponse {
 
 // TODO: Look into NativeImage operators: https://www.electronjs.org/docs/api/native-image#imageresizeoptions
 
-// Set up multiple workers for max performance
-const NUM_THUMBNAIL_WORKERS = 4;
+// Each worker can process four decode/encode jobs concurrently. Scale the worker
+// pool to roughly one worker per four reported logical cores, capped at four.
+const hardwareConcurrency = typeof navigator === 'undefined' ? 4 : navigator.hardwareConcurrency || 4;
+const NUM_THUMBNAIL_WORKERS = Math.max(1, Math.min(4, Math.floor(hardwareConcurrency / 4)));
 const workers: Worker[] = [];
 for (let i = 0; i < NUM_THUMBNAIL_WORKERS; i++) {
   workers[i] = new Worker(
@@ -52,8 +54,18 @@ for (let i = 0; i < NUM_THUMBNAIL_WORKERS; i++) {
   );
 }
 
-let lastSubmittedWorker = 0;
 let nextRequestToken = 1;
+const activeRequestsByWorker = new Map<number, number>();
+
+const selectLeastLoadedWorker = (): number => {
+  let selected = 0;
+  for (let index = 1; index < workers.length; index++) {
+    if ((activeRequestsByWorker.get(index) ?? 0) < (activeRequestsByWorker.get(selected) ?? 0)) {
+      selected = index;
+    }
+  }
+  return selected;
+};
 
 export class ThumbnailRequestDeferredError extends Error {
   constructor() {
@@ -117,6 +129,12 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number, defe
     timeoutByFileId.delete(fileId);
   }
   workerByFileId.delete(fileId);
+  if (currentRequest) {
+    activeRequestsByWorker.set(
+      currentRequest.workerIndex,
+      Math.max(0, (activeRequestsByWorker.get(currentRequest.workerIndex) ?? 1) - 1),
+    );
+  }
   const startedAt = requestStartedAt.get(fileId);
   setPerfGauge('thumbnail', 'queueLength', workerByFileId.size);
   if (startedAt !== undefined) {
@@ -204,9 +222,11 @@ export const generateThumbnailUsingWorker = action(
           success ? resolve() : reject(deferred ? new ThumbnailRequestDeferredError() : undefined),
       ]);
 
-      const workerIndex = lastSubmittedWorker;
-      lastSubmittedWorker = (lastSubmittedWorker + 1) % workers.length;
+      const workerIndex = selectLeastLoadedWorker();
+      activeRequestsByWorker.set(workerIndex, (activeRequestsByWorker.get(workerIndex) ?? 0) + 1);
       queueLengthByWorker.set(workerIndex, (queueLengthByWorker.get(workerIndex) ?? 0) + 1);
+      setPerfGauge('thumbnail', 'workers', workers.length);
+      setPerfGauge('thumbnail', 'workerConcurrency', MAX_PARALLEL_THUMBNAILS);
       setPerfGauge('thumbnail', 'queueLength', [...queueLengthByWorker.values()].reduce((sum, length) => sum + length, 0));
       workerByFileId.set(msg.fileId, { workerIndex, requestToken: msg.requestToken });
 
