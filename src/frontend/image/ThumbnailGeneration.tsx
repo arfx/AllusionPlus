@@ -226,7 +226,6 @@ export const generateThumbnailUsingWorker = action(
       activeRequestsByWorker.set(workerIndex, (activeRequestsByWorker.get(workerIndex) ?? 0) + 1);
       queueLengthByWorker.set(workerIndex, (queueLengthByWorker.get(workerIndex) ?? 0) + 1);
       setPerfGauge('thumbnail', 'workers', workers.length);
-      setPerfGauge('thumbnail', 'workerConcurrency', MAX_PARALLEL_THUMBNAILS);
       setPerfGauge('thumbnail', 'queueLength', [...queueLengthByWorker.values()].reduce((sum, length) => sum + length, 0));
       workerByFileId.set(msg.fileId, { workerIndex, requestToken: msg.requestToken });
 
