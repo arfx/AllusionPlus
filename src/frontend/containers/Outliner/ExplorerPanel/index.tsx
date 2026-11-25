@@ -32,7 +32,6 @@ type FolderNodeProps = {
   directories: Record<string, DirectoryState>;
   onSelect: (path: string) => void;
   onToggle: (entry: ExplorerDirectoryEntry) => void;
-  onPrime: (entry: ExplorerDirectoryEntry) => void;
   onContextMenu: (event: React.MouseEvent<HTMLDivElement>, entry: ExplorerDirectoryEntry) => void;
 };
 
@@ -44,7 +43,6 @@ const FolderNode = ({
   directories,
   onSelect,
   onToggle,
-  onPrime,
   onContextMenu,
 }: FolderNodeProps) => {
   const isExpanded = expandedPaths.has(entry.path);
@@ -57,7 +55,6 @@ const FolderNode = ({
       <div
         className={`explorer-folder-row ${selectedPath === entry.path ? 'selected' : ''}`}
         style={{ paddingLeft: level * 14 }}
-        onMouseEnter={() => onPrime(entry)}
         onContextMenu={(event) => onContextMenu(event, entry)}
         draggable={entry.path !== EXPLORER_COMPUTER_ROOT}
         onDragStart={(event) => {
@@ -72,7 +69,6 @@ const FolderNode = ({
               type="button"
               className="explorer-folder-toggle"
               aria-label={isExpanded ? 'Collapse folder' : 'Expand folder'}
-              onFocus={() => onPrime(entry)}
               onClick={() => onToggle(entry)}
             >
               {isExpanded ? '▾' : '▸'}
@@ -106,7 +102,6 @@ const FolderNode = ({
               directories={directories}
               onSelect={onSelect}
               onToggle={onToggle}
-              onPrime={onPrime}
               onContextMenu={onContextMenu}
             />
           ))}
@@ -252,10 +247,6 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     ));
   }, [showContextMenu]);
 
-  const primeFolder = useCallback((_entry: ExplorerDirectoryEntry) => {
-    // Tree children are loaded only when the disclosure control is expanded.
-  }, []);
-
   const chooseDirectory = useCallback(async () => {
     setIsChoosingDirectory(true);
     try {
@@ -323,11 +314,8 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       if (chunk.paths) files.push(...chunk.paths);
       if (chunk.error) console.error('Could not load Explorer gallery files', chunk.error);
       if (chunk.done) {
-        void fileStore.setExplorerFiles(files).then(() => {
-          if (!cancelled && scanId.current === currentScan) {
-            startExplorerVisibleTileTiming(Math.min(files.length, 30));
-          }
-        });
+        startExplorerVisibleTileTiming(Math.min(files.length, 30));
+        void fileStore.setExplorerFiles(files);
       }
     });
     RendererMessenger.startExplorerScan(selectedDirectory, includeSubfolders, currentScan);
@@ -390,7 +378,6 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
                 directories={directories}
                 onSelect={selectDirectory}
                 onToggle={toggleFolder}
-                onPrime={primeFolder}
                 onContextMenu={handleFolderContextMenu}
               />
             ))}

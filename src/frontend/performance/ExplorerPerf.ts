@@ -8,11 +8,13 @@ let allVisibleStartedAt: number | undefined;
 
 export const startExplorerVisibleTileTiming = (visibleCount: number): void => {
   visibleTilesRemaining = visibleCount;
-  if (!isPerfEnabled()) return;
-  allVisibleStartedAt = visibleCount ? performance.now() : undefined;
+  allVisibleStartedAt = visibleCount && folderLoadStartedAt !== undefined ? folderLoadStartedAt : undefined;
 };
 
 export const reportVisibleExplorerTileLoaded = (): void => {
+  if (allVisibleStartedAt === undefined && visibleTilesRemaining > 0) {
+    allVisibleStartedAt = performance.now();
+  }
   if (!isPerfEnabled() || allVisibleStartedAt === undefined || visibleTilesRemaining <= 0) return;
   visibleTilesRemaining--;
   if (visibleTilesRemaining === 0) {
