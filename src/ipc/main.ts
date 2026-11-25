@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
-import { recordPerf } from '../../common/perf';
+import { recordPerf, writePerfLine } from '../../common/perf';
 import {
   ADD_TAGS_TO_FILE,
   CHECK_FOR_UPDATES,
@@ -9,6 +9,8 @@ import {
   FULL_SCREEN_CHANGED,
   GET_PATH,
   EXPLORER_READ_DIRECTORY,
+  ExplorerReadDirectoryRequest,
+  ExplorerReadDirectoryResponse,
   EXPLORER_SCAN_FILES,
   EXPLORER_SCAN_CHUNK,
   EXPLORER_CANCEL_SCAN,
@@ -105,14 +107,23 @@ export class MainMessenger {
 
   static onExplorerReadDirectory = (
     cb: (absolutePath: string) => Promise<ExplorerDirectoryEntry[]>,
-  ) => ipcMain.handle(EXPLORER_READ_DIRECTORY, async (_, absolutePath: string) => {
-    const startedAt = performance.now();
-    try {
-      return await cb(absolutePath);
-    } finally {
-      recordPerf('explorer.ipc', performance.now() - startedAt);
-    }
-  });
+  ) => ipcMain.handle(
+    EXPLORER_READ_DIRECTORY,
+    async (_, request: ExplorerReadDirectoryRequest): Promise<ExplorerReadDirectoryResponse> => {
+      const startedAt = performance.now();
+      let entries: ExplorerDirectoryEntry[] = [];
+      try {
+        entries = await cb(request.absolutePath);
+        return { requestId: request.requestId, absolutePath: request.absolutePath, entries };
+      } finally {
+        const handlerTotalMs = performance.now() - startedAt;
+        recordPerf('explorer.handlerTotal', handlerTotalMs);
+        writePerfLine(
+          `[perf] explorer.handler requestId=${request.requestId} path=${request.absolutePath} entries=${entries.length} handlerTotalMs=${Math.round(handlerTotalMs * 10) / 10}ms context=readdir`,
+        );
+      }
+    },
+  );
 
   static onExplorerScanFiles = (
     cb: (absolutePath: string, recursive: boolean, scanId: number, sender: WebContents) => Promise<void>,

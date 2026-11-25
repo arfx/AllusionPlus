@@ -31,6 +31,12 @@ export const MESSAGE_BOX = 'MESSAGE_BOX';
 export const MESSAGE_BOX_SYNC = 'MESSAGE_BOX_SYNC';
 export const GET_PATH = 'GET_PATH';
 export const EXPLORER_READ_DIRECTORY = 'EXPLORER_READ_DIRECTORY';
+export type ExplorerReadDirectoryRequest = { requestId: string; absolutePath: string };
+export type ExplorerReadDirectoryResponse = {
+  requestId: string;
+  absolutePath: string;
+  entries: ExplorerDirectoryEntry[];
+};
 export const EXPLORER_SCAN_FILES = 'EXPLORER_SCAN_FILES';
 export const EXPLORER_SCAN_CHUNK = 'EXPLORER_SCAN_CHUNK';
 export const EXPLORER_CANCEL_SCAN = 'EXPLORER_CANCEL_SCAN';

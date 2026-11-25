@@ -23,10 +23,22 @@ import TrayIconMac from '../resources/logo/png/black/allusionTemplate@2x.png'; /
 import ClipServer, { IImportItem } from './clipper/server';
 import { createBugReport, githubUrl } from '../common/config';
 import { IS_DEV, IS_MAC } from '../common/process';
-import { recordPerf, recordPerfEvent } from '../common/perf';
+import { recordPerf, recordPerfEvent, isPerfEnabled, writePerfLine } from '../common/perf';
+import { monitorEventLoopDelay } from 'perf_hooks';
 import { TagDTO, ROOT_TAG_ID } from './api/tag';
 import { MainMessenger } from './ipc/main';
 import { WindowSystemButtonPress, ExplorerDirectoryEntry } from './ipc/messages';
+
+const eventLoopDelayMonitor = monitorEventLoopDelay({ resolution: 20 });
+if (isPerfEnabled()) {
+  eventLoopDelayMonitor.enable();
+  setInterval(() => {
+    const meanMs = eventLoopDelayMonitor.mean / 1e6;
+    const maxMs = eventLoopDelayMonitor.max / 1e6;
+    writePerfLine(`[perf] main.eventLoopDelay mean=${meanMs.toFixed(1)}ms max=${maxMs.toFixed(1)}ms`);
+    eventLoopDelayMonitor.reset();
+  }, 1000).unref();
+}
 
 const getExplorerDriveLabel = (absolutePath: string): string => {
   if (absolutePath.startsWith('\\\\')) {

@@ -1,4 +1,5 @@
 import { ipcRenderer } from 'electron';
+import { writePerfLine } from '../../common/perf';
 import path from 'path';
 import {
   ADD_TAGS_TO_FILE,
@@ -14,6 +15,7 @@ import {
   EXPLORER_CANCEL_SCAN,
   ExplorerScanChunk,
   ExplorerDirectoryEntry,
+  ExplorerReadDirectoryResponse,
   GET_TAGS,
   GET_VERSION,
   GET_ZOOM_FACTOR,
@@ -65,6 +67,8 @@ import {
   CONSOLE_MESSAGE,
 } from './messages';
 
+let nextExplorerReadRequestId = 1;
+
 export class RendererMessenger {
   static initialized = () => ipcRenderer.send(INITIALIZED);
 
@@ -90,8 +94,16 @@ export class RendererMessenger {
 
   static getPath = (name: SYSTEM_PATHS): Promise<string> => ipcRenderer.invoke(GET_PATH, name);
 
-  static explorerReadDirectory = (absolutePath: string): Promise<ExplorerDirectoryEntry[]> =>
-    ipcRenderer.invoke(EXPLORER_READ_DIRECTORY, absolutePath);
+  static explorerReadDirectory = async (absolutePath: string): Promise<ExplorerDirectoryEntry[]> => {
+    const requestId = `explorer-${nextExplorerReadRequestId++}`;
+    const startedAt = performance.now();
+    const response = (await ipcRenderer.invoke(EXPLORER_READ_DIRECTORY, { requestId, absolutePath })) as ExplorerReadDirectoryResponse;
+    const elapsedMs = performance.now() - startedAt;
+    writePerfLine(
+      `[perf] explorerReadDirectory renderer requestId=${requestId} path=${absolutePath} entries=${response.entries.length} roundTripMs=${Math.round(elapsedMs * 10) / 10}ms`,
+    );
+    return response.entries;
+  };
 
   static startExplorerScan = (absolutePath: string, recursive: boolean, scanId: number): void =>
     ipcRenderer.send(EXPLORER_SCAN_FILES, absolutePath, recursive, scanId);

@@ -21,7 +21,7 @@ export const isPerfEnabled = (): boolean => process.env.ALLUSION_PERF === '1';
 
 const round = (value: number): number => Math.round(value * 10) / 10;
 
-const writeLine = (line: string): void => {
+export const writePerfLine = (line: string): void => {
   if (!isPerfEnabled()) return;
   console.info(line);
   const filePath = process.env.ALLUSION_PERF_FILE;
@@ -29,6 +29,8 @@ const writeLine = (line: string): void => {
     void fse.appendFile(filePath, `${line}\n`, { encoding: 'utf8' }).catch(() => undefined);
   }
 };
+
+const writeLine = writePerfLine;
 
 const getBucket = (category: string): PerfBucket => {
   let bucket = buckets.get(category);
