@@ -7,6 +7,19 @@ import { IThumbnailMessage, IThumbnailMessageResponse } from '../image/Thumbnail
 const QUICK_PREVIEW_MAX_SIZE = 128;
 
 const thumbnailTimings = new Map<number, { decodeMs: number; encodeMs: number }>();
+const activeRequestTokens = new Set<number>();
+const cancelledRequestTokens = new Set<number>();
+
+class ThumbnailCancelledError extends Error {
+  constructor() {
+    super('Thumbnail request was cancelled');
+    this.name = 'ThumbnailCancelledError';
+  }
+}
+
+const throwIfCancelled = (isCancelled: () => boolean): void => {
+  if (isCancelled()) throw new ThumbnailCancelledError();
+};
 
 const renderImageBuffer = async (
   img: ImageBitmap,
@@ -30,7 +43,8 @@ const renderImageBuffer = async (
 
 const generateThumbnailData = async (
   filePath: string,
-  imageBitmap?: ImageBitmap,
+  imageBitmap: ImageBitmap | undefined,
+  isCancelled: () => boolean,
 ): Promise<{ preview: ArrayBuffer | null; thumbnail: ArrayBuffer | null; decodeMs: number; encodeMs: number }> => {
   let inputBuffer: Buffer | null = null;
   let inputBlob: Blob | null = null;
@@ -38,11 +52,14 @@ const generateThumbnailData = async (
   const decodeStartedAt = performance.now();
   let decodeMs = 0;
   try {
+    throwIfCancelled(isCancelled);
     if (imageBitmap !== undefined) img = imageBitmap;
     else {
       inputBuffer = await fse.readFile(filePath);
+      throwIfCancelled(isCancelled);
       inputBlob = new Blob([inputBuffer]);
       img = await createImageBitmap(inputBlob);
+      throwIfCancelled(isCancelled);
     }
     decodeMs = performance.now() - decodeStartedAt;
     const encodeStartedAt = performance.now();
@@ -58,12 +75,15 @@ const generateThumbnailData = async (
     const preview = maxEdge > QUICK_PREVIEW_MAX_SIZE
       ? await renderImageBuffer(img, previewSize.width, previewSize.height, 0.68, thumbnailFormat)
       : null;
+    throwIfCancelled(isCancelled);
     const thumbnailSize = scaleTo(thumbnailMaxSize);
     const thumbnail = await renderImageBuffer(
       img, thumbnailSize.width, thumbnailSize.height, maxEdge <= thumbnailMaxSize ? 1 : 0.75, thumbnailFormat,
     );
+    throwIfCancelled(isCancelled);
     return { preview, thumbnail, decodeMs, encodeMs: performance.now() - encodeStartedAt };
   } catch (error) {
+    if (error instanceof ThumbnailCancelledError) throw error;
     console.error('Error generating thumbnail data:', error);
     return { preview: null, thumbnail: null, decodeMs, encodeMs: 0 };
   } finally {
@@ -79,18 +99,24 @@ const generateAndStoreThumbnail = async (
   imageBitmap: ImageBitmap | undefined,
   fileId: string,
   requestToken: number,
+  isCancelled: () => boolean,
   previewOnly = false,
 ) => {
+  throwIfCancelled(isCancelled);
   if (previewOnly) {
     const inputBuffer = await fse.readFile(filePath);
+    throwIfCancelled(isCancelled);
     const img = await createImageBitmap(new Blob([inputBuffer]));
+    throwIfCancelled(isCancelled);
     try {
       const maxEdge = Math.max(img.width, img.height);
       const scale = Math.min(1, QUICK_PREVIEW_MAX_SIZE / maxEdge);
       const width = Math.max(1, Math.round(img.width * scale));
       const height = Math.max(1, Math.round(img.height * scale));
       const preview = await renderImageBuffer(img, width, height, 0.68, thumbnailFormat);
+      throwIfCancelled(isCancelled);
       await fse.outputFile(thumbnailFilePath, Buffer.from(preview));
+      throwIfCancelled(isCancelled);
       ctx.postMessage({
         type: 'preview', fileId, thumbnailPath: thumbnailFilePath, requestToken,
       } satisfies IThumbnailMessageResponse);
@@ -99,17 +125,22 @@ const generateAndStoreThumbnail = async (
       img.close();
     }
   }
-  const data = await generateThumbnailData(filePath, imageBitmap);
+  const data = await generateThumbnailData(filePath, imageBitmap, isCancelled);
   thumbnailTimings.set(requestToken, { decodeMs: data.decodeMs, encodeMs: data.encodeMs });
+  throwIfCancelled(isCancelled);
   if (!data.thumbnail) return '';
   if (data.preview) {
     const previewPath = `${thumbnailFilePath}.preview.${thumbnailFormat}`;
+    throwIfCancelled(isCancelled);
     await fse.outputFile(previewPath, Buffer.from(data.preview));
+    throwIfCancelled(isCancelled);
     ctx.postMessage({
       type: 'preview', fileId, thumbnailPath: previewPath, requestToken,
     } satisfies IThumbnailMessageResponse);
   }
+  throwIfCancelled(isCancelled);
   await fse.outputFile(thumbnailFilePath, Buffer.from(data.thumbnail));
+  throwIfCancelled(isCancelled);
   return thumbnailFilePath;
 };
 
@@ -211,6 +242,8 @@ async function processMessage(data: IThumbnailMessage) {
     // console.log('Processing thumbnail message', { data, curParallelThumbnails, queue });
     if (curParallelThumbnails < MAX_PARALLEL_THUMBNAILS) {
       curParallelThumbnails++;
+      activeRequestTokens.add(data.requestToken);
+      const isCancelled = () => cancelledRequestTokens.has(data.requestToken);
       const generationStartedAt = performance.now();
       // This epoch-ms timestamp originates just before the renderer's initial postMessage;
       // don't refresh it when the same request is deferred and re-queued here.
@@ -223,6 +256,7 @@ async function processMessage(data: IThumbnailMessage) {
         imageBitmap,
         fileId,
         data.requestToken,
+        isCancelled,
         data.previewOnly,
       );
       const generationMs = performance.now() - generationStartedAt;
@@ -241,17 +275,30 @@ async function processMessage(data: IThumbnailMessage) {
         writeMs,
         queueLength: queue.length,
         outputFormat: thumbnailFormat,
+        deferred: isCancelled(),
       };
       ctx.postMessage(response);
+      activeRequestTokens.delete(data.requestToken);
+      cancelledRequestTokens.delete(data.requestToken);
       curParallelThumbnails--;
     } else {
       addToQueue(data);
     }
   } catch (err) {
     curParallelThumbnails--;
-    console.error('Could not generate image thumbnail', data.filePath, err);
-    // If an error occurs, just load the real file
-    ctx.postMessage({ fileId, thumbnailPath: filePath, success: false, requestToken: data.requestToken });
+    const wasCancelled = err instanceof ThumbnailCancelledError || cancelledRequestTokens.has(data.requestToken);
+    if (!wasCancelled) console.error('Could not generate image thumbnail', data.filePath, err);
+    // If an error occurs, just load the real file. Cancellation is reported as
+    // deferred so the renderer can release the request without invoking fallbacks.
+    ctx.postMessage({
+      fileId,
+      thumbnailPath: filePath,
+      success: false,
+      deferred: wasCancelled,
+      requestToken: data.requestToken,
+    });
+    activeRequestTokens.delete(data.requestToken);
+    cancelledRequestTokens.delete(data.requestToken);
   }
   if (curParallelThumbnails < MAX_PARALLEL_THUMBNAILS && queue.length > 0) {
     processMessage(queue.shift()!); // "pop" from the queue. First elements are at the start, so shift em
@@ -262,12 +309,18 @@ async function processMessage(data: IThumbnailMessage) {
 ctx.addEventListener('message', async (event) => {
   // Promote a queued request when its cell moves into the visible viewport.
   if (event.data.type === 'reprioritize') {
+    if (activeRequestTokens.has(event.data.requestToken)) {
+      // A request that becomes visible again should finish normally if it has
+      // not yet passed its next cooperative cancellation check.
+      cancelledRequestTokens.delete(event.data.requestToken);
+    }
     const index = queue.findIndex(
       (item) =>
         item.fileId === event.data.fileId && item.requestToken === event.data.requestToken,
     );
     if (index !== -1) {
       const [item] = queue.splice(index, 1);
+      cancelledRequestTokens.delete(event.data.requestToken);
       item.priority = Math.max(item.priority ?? 0, event.data.priority ?? 0);
       insertIntoQueue(item);
     }
@@ -284,6 +337,10 @@ ctx.addEventListener('message', async (event) => {
       const [cancelled] = queue.splice(index, 1);
       reportCancelledRequest(cancelled);
       console.debug(`Cancelled queued request for fileId: ${event.data.fileId}`);
+    } else if (activeRequestTokens.has(event.data.requestToken)) {
+      // Decoding and canvas encoding are not interruptible browser APIs, but
+      // cancellation checks prevent subsequent previews and disk writes.
+      cancelledRequestTokens.add(event.data.requestToken);
     }
     return;
   }
