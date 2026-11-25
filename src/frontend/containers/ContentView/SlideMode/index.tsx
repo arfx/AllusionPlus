@@ -362,6 +362,7 @@ const ZoomableImage: React.FC<ZoomableImageProps> = ({
         onClose={onClose}
         onTransitionComplete={() => setOpeningTransitionComplete(true)}
         upscaleMode={upscaleMode}
+          allowUpscale={uiStore.isSlidePreviewFitToWindowEnabled}
       >
         {(props) => (
           <img
