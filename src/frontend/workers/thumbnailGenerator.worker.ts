@@ -107,8 +107,8 @@ const generateAndStoreThumbnail = async (
     const inputBuffer = await fse.readFile(filePath);
     throwIfCancelled(isCancelled);
     const img = await createImageBitmap(new Blob([inputBuffer]));
-    throwIfCancelled(isCancelled);
     try {
+      throwIfCancelled(isCancelled);
       const maxEdge = Math.max(img.width, img.height);
       const scale = Math.min(1, QUICK_PREVIEW_MAX_SIZE / maxEdge);
       const width = Math.max(1, Math.round(img.width * scale));
