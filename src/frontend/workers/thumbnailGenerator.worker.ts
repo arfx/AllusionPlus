@@ -1,5 +1,4 @@
 import fse from 'fs-extra';
-import { setPerfGauge } from '../../../common/perf';
 
 import { thumbnailFormat, thumbnailMaxSize } from 'common/config';
 import { IThumbnailMessage, IThumbnailMessageResponse } from '../image/ThumbnailGeneration';
@@ -148,7 +147,6 @@ const insertIntoQueue = (data: IThumbnailMessage) => {
     insertAt = queue.length;
   }
   queue.splice(insertAt, 0, data);
-  setPerfGauge('thumbnail', 'queueLength', queue.length);
 };
 
 const addToQueue = (data: IThumbnailMessage) => {
@@ -194,7 +192,6 @@ async function processMessage(data: IThumbnailMessage) {
     // console.log('Processing thumbnail message', { data, curParallelThumbnails, queue });
     if (curParallelThumbnails < MAX_PARALLEL_THUMBNAILS) {
       curParallelThumbnails++;
-      setPerfGauge('thumbnail', 'queueLength', queue.length);
       const generationStartedAt = performance.now();
       const queueWaitMs = data.workerEnqueuedAt === undefined ? 0 : generationStartedAt - data.workerEnqueuedAt;
       (generateAndStoreThumbnail as any).lastDecodeMs = 0;
@@ -261,7 +258,6 @@ ctx.addEventListener('message', async (event) => {
     );
     if (index !== -1) {
       const [cancelled] = queue.splice(index, 1);
-      setPerfGauge('thumbnail', 'queueLength', queue.length);
       releaseImageBitmap(cancelled);
       console.debug(`Cancelled request for fileId: ${event.data.fileId}`);
     }
