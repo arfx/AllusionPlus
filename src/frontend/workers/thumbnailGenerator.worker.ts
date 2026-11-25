@@ -5,6 +5,7 @@ import { IThumbnailMessage, IThumbnailMessageResponse } from '../image/Thumbnail
 
 // TODO: Merge this with the generateThumbnail func from frontend/image/utils.ts, it's duplicate code
 const QUICK_PREVIEW_MAX_SIZE = 128;
+const thumbnailTimings = new Map<number, { decodeMs: number; encodeMs: number }>();
 
 const renderImageBuffer = async (
   img: ImageBitmap,
@@ -94,8 +95,7 @@ const generateAndStoreThumbnail = async (
     }
   }
   const data = await generateThumbnailData(filePath, imageBitmap);
-  (generateAndStoreThumbnail as any).lastDecodeMs = data.decodeMs;
-  (generateAndStoreThumbnail as any).lastEncodeMs = data.encodeMs;
+  thumbnailTimings.set(requestToken, { decodeMs: data.decodeMs, encodeMs: data.encodeMs });
   if (!data.thumbnail) return '';
   if (data.preview) {
     const previewPath = `${thumbnailFilePath}.preview.${thumbnailFormat}`;
@@ -194,8 +194,6 @@ async function processMessage(data: IThumbnailMessage) {
       curParallelThumbnails++;
       const generationStartedAt = performance.now();
       const queueWaitMs = data.workerEnqueuedAt === undefined ? 0 : generationStartedAt - data.workerEnqueuedAt;
-      (generateAndStoreThumbnail as any).lastDecodeMs = 0;
-      (generateAndStoreThumbnail as any).lastEncodeMs = 0;
       const thumbnailPath = await generateAndStoreThumbnail(
         filePath,
         thumbnailFilePath,
@@ -205,7 +203,9 @@ async function processMessage(data: IThumbnailMessage) {
         data.previewOnly,
       );
       const generationMs = performance.now() - generationStartedAt;
-      const writeMs = Math.max(0, generationMs - ((generateAndStoreThumbnail as any).lastDecodeMs ?? 0) - ((generateAndStoreThumbnail as any).lastEncodeMs ?? 0));
+      const timing = thumbnailTimings.get(data.requestToken) ?? { decodeMs: 0, encodeMs: 0 };
+      thumbnailTimings.delete(data.requestToken);
+      const writeMs = Math.max(0, generationMs - timing.decodeMs - timing.encodeMs);
       const response: IThumbnailMessageResponse = {
         fileId,
         thumbnailPath: thumbnailPath || filePath,
@@ -213,8 +213,8 @@ async function processMessage(data: IThumbnailMessage) {
         requestToken: data.requestToken,
         queueWaitMs,
         generationMs,
-        decodeMs: (generateAndStoreThumbnail as any).lastDecodeMs ?? 0,
-        encodeMs: (generateAndStoreThumbnail as any).lastEncodeMs ?? 0,
+        decodeMs: timing.decodeMs,
+        encodeMs: timing.encodeMs,
         writeMs,
         queueLength: queue.length,
       };
