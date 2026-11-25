@@ -13,7 +13,7 @@ import {
   Rectangle,
   Tray,
 } from 'electron';
-import { spawn } from 'child_process';
+import { spawn, execFile } from 'child_process';
 import path from 'path';
 import fse from 'fs-extra';
 import { autoUpdater, UpdateInfo } from 'electron-updater';
@@ -39,6 +39,20 @@ if (isPerfEnabled()) {
     eventLoopDelayMonitor.reset();
   }, 1000).unref();
 }
+
+type CachedExplorerDrive = { checkedAt: number; entry?: ExplorerDirectoryEntry };
+const explorerDriveCache = new Map<string, CachedExplorerDrive>();
+const EXPLORER_DRIVE_CACHE_MS = 30000;
+const REMOTE_DRIVE_TIMEOUT_MS = 500;
+const driveTypeNames: Record<number, string> = {
+  0: 'DRIVE_UNKNOWN',
+  1: 'DRIVE_NO_ROOT_DIR',
+  2: 'DRIVE_REMOVABLE',
+  3: 'DRIVE_FIXED',
+  4: 'DRIVE_REMOTE',
+  5: 'DRIVE_CDROM',
+  6: 'DRIVE_RAMDISK',
+};
 
 const getExplorerDriveLabel = (absolutePath: string): string => {
   if (absolutePath.startsWith('\\\\')) {
@@ -866,50 +880,76 @@ MainMessenger.onMessageBoxSync(dialog);
 
 MainMessenger.onGetPath((path) => app.getPath(path));
 
-MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
+MainMessenger.onExplorerReadDirectory(async (absolutePath, forceRefresh = false) => {
   if (absolutePath === '::allusion-explorer-computer::') {
     if (process.platform === 'win32') {
-      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
       const rootsStartedAt = performance.now();
-      const driveStatTimeoutMs = 5000;
-      const roots = await Promise.all(
-        letters.map(async (letter) => {
-          const drivePath = `${letter}:\\`;
-          const startedAt = performance.now();
-          let timedOut = false;
-          // Observe slow drive probes without racing/cancelling stat (preserve current behavior).
-          const timeoutId = isPerfEnabled() ? setTimeout(() => {
-            timedOut = true;
-            writePerfLine(
-              `[perf] explorer.computerDrive letter=${letter} path=${drivePath} durationMs=${driveStatTimeoutMs} timeoutMs=${driveStatTimeoutMs} result=timeout pending=true`,
-            );
-          }, driveStatTimeoutMs) : undefined;
+      const psScript = [
+        '$source = \'using System; using System.Runtime.InteropServices; public static class AllusionNativeDrives { [DllImport("kernel32.dll", SetLastError=true)] public static extern uint GetLogicalDrives(); [DllImport("kernel32.dll", CharSet=CharSet.Unicode, EntryPoint="GetDriveTypeW", ExactSpelling=true)] public static extern uint GetDriveType(string rootPath); }\'',
+        '$null = Add-Type -TypeDefinition $source',
+        '$bits = [AllusionNativeDrives]::GetLogicalDrives()',
+        '$drives = @(); for ($index = 0; $index -lt 26; $index++) { if ($bits -band (1 -shl $index)) { $path = ([char](65 + $index)).ToString() + ":\\"; $drives += [pscustomobject]@{ Letter=$path.Substring(0,1); Path=$path; Type=[AllusionNativeDrives]::GetDriveType($path) } } }',
+        'ConvertTo-Json -InputObject $drives -Compress',
+      ].join('; ');
+      const driveResults = await new Promise<Array<{ Letter: string; Path: string; Type: number }>>((resolve, reject) => {
+        execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], { windowsHide: true }, (error, stdout) => {
+          if (error) return reject(error);
           try {
-            const stats = await fse.stat(drivePath);
-            const durationMs = performance.now() - startedAt;
-            const entry = stats.isDirectory()
-              ? { name: drivePath, path: drivePath, isDirectory: true }
-              : undefined;
-            writePerfLine(
-              `[perf] explorer.computerDrive letter=${letter} path=${drivePath} durationMs=${durationMs.toFixed(1)} timeoutMs=${driveStatTimeoutMs} result=ok timeoutObserved=${timedOut} directory=${Boolean(entry)}`,
-            );
-            return entry;
-          } catch (error) {
-            const durationMs = performance.now() - startedAt;
-            writePerfLine(
-              `[perf] explorer.computerDrive letter=${letter} path=${drivePath} durationMs=${durationMs.toFixed(1)} timeoutMs=${driveStatTimeoutMs} result=error timeoutObserved=${timedOut} code=${(error as NodeJS.ErrnoException).code ?? 'unknown'}`,
-            );
-            return undefined;
-          } finally {
-            if (timeoutId !== undefined) clearTimeout(timeoutId);
+            const parsed = JSON.parse(stdout.trim() || '[]');
+            resolve(Array.isArray(parsed) ? parsed : [parsed]);
+          } catch (parseError) {
+            reject(parseError);
           }
-        }),
-      );
-      const availableRoots = roots.filter((entry): entry is ExplorerDirectoryEntry => entry !== undefined);
-      writePerfLine(
-        `[perf] explorer.computerDrives totalMs=${(performance.now() - rootsStartedAt).toFixed(1)} candidates=${letters.length} available=${availableRoots.length}`,
-      );
-      return availableRoots;
+        });
+      });
+      const now = Date.now();
+      const availableRoots = await Promise.all(driveResults.map(async ({ Letter, Path: drivePath, Type }) => {
+        const isRemote = Type === 4;
+        const cached = explorerDriveCache.get(Letter);
+        if (!forceRefresh && cached && now - cached.checkedAt < EXPLORER_DRIVE_CACHE_MS) {
+          writePerfLine(`[perf] explorer.computerDrive letter=${Letter} path=${drivePath} type=${driveTypeNames[Type] ?? Type} result=${cached.entry ? 'available' : 'offline'} durationMs=0.0 cache=hit`);
+          return cached.entry;
+        }
+        const startedAt = performance.now();
+        const statPromise = fse.stat(drivePath).then((stats) => stats.isDirectory());
+        let available = false;
+        let result: 'available' | 'offline' | 'Timeout' | 'error' = 'offline';
+        if (isRemote) {
+          let timeoutId: NodeJS.Timeout | undefined;
+          try {
+            const outcome = await Promise.race([
+              statPromise.then((isDirectory) => ({ kind: 'complete' as const, isDirectory })),
+              new Promise<{ kind: 'timeout' }>((resolve) => {
+                timeoutId = setTimeout(() => resolve({ kind: 'timeout' }), REMOTE_DRIVE_TIMEOUT_MS);
+              }),
+            ]);
+            if (outcome.kind === 'timeout') result = 'Timeout';
+            else {
+              available = outcome.isDirectory;
+              result = available ? 'available' : 'offline';
+            }
+          } catch {
+            result = 'offline';
+          } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+          }
+        } else {
+          try {
+            available = await statPromise;
+            result = available ? 'available' : 'offline';
+          } catch {
+            result = 'error';
+          }
+        }
+        const entry = available ? { name: drivePath, path: drivePath, isDirectory: true } : undefined;
+        // Do not cache timeouts; a later explicit visit should be able to retry offline drives.
+        if (result !== 'Timeout') explorerDriveCache.set(Letter, { checkedAt: Date.now(), entry });
+        writePerfLine(`[perf] explorer.computerDrive letter=${Letter} path=${drivePath} type=${driveTypeNames[Type] ?? Type} result=${result} durationMs=${(performance.now() - startedAt).toFixed(1)} cache=miss`);
+        return entry;
+      }));
+      const roots = availableRoots.filter((entry): entry is ExplorerDirectoryEntry => entry !== undefined);
+      writePerfLine(`[perf] explorer.computerDrives totalMs=${(performance.now() - rootsStartedAt).toFixed(1)} candidates=${driveResults.length} available=${roots.length} forceRefresh=${forceRefresh}`);
+      return roots;
     }
     return [{ name: '/', path: '/', isDirectory: true }];
   }

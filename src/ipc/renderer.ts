@@ -94,10 +94,17 @@ export class RendererMessenger {
 
   static getPath = (name: SYSTEM_PATHS): Promise<string> => ipcRenderer.invoke(GET_PATH, name);
 
-  static explorerReadDirectory = async (absolutePath: string): Promise<ExplorerDirectoryEntry[]> => {
+  static explorerReadDirectory = async (
+    absolutePath: string,
+    forceRefresh = false,
+  ): Promise<ExplorerDirectoryEntry[]> => {
     const requestId = `explorer-${nextExplorerReadRequestId++}`;
     const startedAt = performance.now();
-    const response = (await ipcRenderer.invoke(EXPLORER_READ_DIRECTORY, { requestId, absolutePath })) as ExplorerReadDirectoryResponse;
+    const response = (await ipcRenderer.invoke(EXPLORER_READ_DIRECTORY, {
+      requestId,
+      absolutePath,
+      forceRefresh,
+    })) as ExplorerReadDirectoryResponse;
     const elapsedMs = performance.now() - startedAt;
     writePerfLine(
       `[perf] explorerReadDirectory renderer requestId=${requestId} path=${absolutePath} entries=${response.entries.length} roundTripMs=${Math.round(elapsedMs * 10) / 10}ms`,

@@ -106,14 +106,14 @@ export class MainMessenger {
     ipcMain.handle(GET_PATH, (_, name) => cb(name));
 
   static onExplorerReadDirectory = (
-    cb: (absolutePath: string) => Promise<ExplorerDirectoryEntry[]>,
+    cb: (absolutePath: string, forceRefresh?: boolean) => Promise<ExplorerDirectoryEntry[]>,
   ) => ipcMain.handle(
     EXPLORER_READ_DIRECTORY,
     async (_, request: ExplorerReadDirectoryRequest): Promise<ExplorerReadDirectoryResponse> => {
       const startedAt = performance.now();
       let entries: ExplorerDirectoryEntry[] = [];
       try {
-        entries = await cb(request.absolutePath);
+        entries = await cb(request.absolutePath, request.forceRefresh);
         return { requestId: request.requestId, absolutePath: request.absolutePath, entries };
       } finally {
         const handlerTotalMs = performance.now() - startedAt;

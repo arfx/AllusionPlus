@@ -146,13 +146,13 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     ]);
   }, [includeSubfolders, uiStore]);
 
-  const readDirectory = useCallback(async (absolutePath: string): Promise<ExplorerDirectoryEntry[]> => {
+  const readDirectory = useCallback(async (absolutePath: string, forceRefresh = false): Promise<ExplorerDirectoryEntry[]> => {
     setDirectories((previous) => ({
       ...previous,
       [absolutePath]: { ...previous[absolutePath], entries: previous[absolutePath]?.entries ?? [], loading: true },
     }));
     try {
-      const entries = await RendererMessenger.explorerReadDirectory(absolutePath);
+      const entries = await RendererMessenger.explorerReadDirectory(absolutePath, forceRefresh);
       setDirectories((previous) => ({
         ...previous,
         [absolutePath]: {
@@ -289,7 +289,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         return;
       }
 
-      const entries = await readDirectory(entry.path);
+      const entries = await readDirectory(entry.path, entry.path === EXPLORER_COMPUTER_ROOT);
       const hasSubfolders = entries.some((item) => item.isDirectory);
       setDirectories((previous) => ({
         ...previous,

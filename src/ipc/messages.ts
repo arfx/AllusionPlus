@@ -31,7 +31,7 @@ export const MESSAGE_BOX = 'MESSAGE_BOX';
 export const MESSAGE_BOX_SYNC = 'MESSAGE_BOX_SYNC';
 export const GET_PATH = 'GET_PATH';
 export const EXPLORER_READ_DIRECTORY = 'EXPLORER_READ_DIRECTORY';
-export type ExplorerReadDirectoryRequest = { requestId: string; absolutePath: string };
+export type ExplorerReadDirectoryRequest = { requestId: string; absolutePath: string; forceRefresh?: boolean };
 export type ExplorerReadDirectoryResponse = {
   requestId: string;
   absolutePath: string;
