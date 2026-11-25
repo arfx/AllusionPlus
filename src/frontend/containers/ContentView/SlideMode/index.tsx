@@ -2,7 +2,7 @@ import { shell } from 'electron';
 import { autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import SysPath from 'path';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { encodeFilePath, isFileExtensionVideo } from 'common/fs';
 import { Button, IconSet, Split } from 'widgets';
 import { useStore } from '../../../contexts/StoreContext';
@@ -228,6 +228,7 @@ const ZoomableImage: React.FC<ZoomableImageProps> = ({
 }: ZoomableImageProps) => {
   const { imageLoader } = useStore();
   const { absolutePath, width: imgWidth, height: imgHeight } = file;
+  const [openingTransitionComplete, setOpeningTransitionComplete] = useState(!transitionStart);
   // Image src can be set asynchronously: keep track of it in a state
   // Needed for image formats not natively supported by the browser (e.g. tiff): will be converted to another format
   const source = usePromise(file, thumbnailSrc, async (file, thumbnailPath) => {
@@ -297,6 +298,11 @@ const ZoomableImage: React.FC<ZoomableImageProps> = ({
             src: thumbnailSrc || absolutePath,
             dimension: createDimension(imgWidth, imgHeight),
           };
+    // Keep the lightweight thumbnail on screen during the opening zoom.
+    // Swapping to the decoded full-resolution image mid-transition can trigger
+    // an expensive repaint and make the animation visibly stutter.
+    const displaySrc =
+      transitionStart && !openingTransitionComplete ? thumbnailSrc : src;
     const minScale = Math.min(0.1, Math.min(width / dimension[0], height / dimension[1]));
 
     // Alternative case for videos
@@ -313,12 +319,13 @@ const ZoomableImage: React.FC<ZoomableImageProps> = ({
           transitionStart={transitionStart}
           transitionEnd={transitionEnd}
           onClose={onClose}
+          onTransitionComplete={() => setOpeningTransitionComplete(true)}
           upscaleMode={upscaleMode}
         >
           {(props) => (
             <video
               {...props}
-              src={encodeFilePath(src)}
+              src={encodeFilePath(displaySrc)}
               width={dimension[0]}
               height={dimension[1]}
               controls
