@@ -11,6 +11,7 @@ import { ExplorerDirectoryEntry, EXPLORER_COMPUTER_ROOT } from '../../../../ipc/
 import { RendererMessenger } from '../../../../ipc/renderer';
 import { EXPLORER_REVEAL_FOLDER, getExplorerBookmarks, saveExplorerBookmarks } from '../../../entities/ExplorerBookmark';
 import { generateId } from '../../../../api/id';
+import { startExplorerFolderTiming } from '../../../performance/ExplorerPerf';
 import './ExplorerPanel.scss';
 
 const EXPLORER_FOLDER_DRAG_TYPE = 'application/x-allusion-explorer-folder';
@@ -275,6 +276,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         properties: ['openDirectory'],
       });
       if (!result.canceled && result.filePaths.length > 0) {
+        startExplorerFolderTiming(result.filePaths[0]);
         uiStore.removeSearchCriteriaByKey('absolutePath');
         uiStore.setExplorerCurrentDirectory(result.filePaths[0]);
         setDirectoryRefreshVersion((version) => version + 1);
@@ -329,6 +331,7 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   useEffect(() => {
     const selectedDirectory = uiStore.explorerCurrentDirectory;
     if (!selectedDirectory) return;
+    startExplorerFolderTiming(selectedDirectory);
     const currentScan = ++scanId.current;
     let cancelled = false;
 

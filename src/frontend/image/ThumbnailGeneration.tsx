@@ -22,6 +22,7 @@ export interface IThumbnailMessage {
   requestToken: number;
   priority?: number;
   previewOnly?: boolean;
+  workerEnqueuedAt?: number;
 }
 
 export interface IThumbnailMessageResponse {
@@ -31,6 +32,8 @@ export interface IThumbnailMessageResponse {
   deferred?: boolean;
   type?: 'preview';
   requestToken: number;
+  queueWaitMs?: number;
+  generationMs?: number;
 }
 
 // TODO: Look into NativeImage operators: https://www.electronjs.org/docs/api/native-image#imageresizeoptions
@@ -109,7 +112,7 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number, defe
   workerByFileId.delete(fileId);
   const startedAt = requestStartedAt.get(fileId);
   if (startedAt !== undefined) {
-    const duration = Date.now() - startedAt;
+    const duration = performance.now() - startedAt;
     requestStartedAt.delete(fileId);
     thumbnailDiagnostics.inFlight = Math.max(0, thumbnailDiagnostics.inFlight - 1);
     thumbnailDiagnostics.lastDurationMs = duration;
@@ -150,6 +153,7 @@ export const generateThumbnailUsingWorker = action(
       priority,
       previewOnly,
     };
+    const requestCallStartedAt = performance.now();
 
     return new Promise<void>((resolve, reject) => {
       // Reuse an in-flight request instead of starting another timer or worker job.
@@ -160,9 +164,13 @@ export const generateThumbnailUsingWorker = action(
           callbacks.push(onPreview);
           previewListeners.set(file.id, callbacks);
         }
-        existingListeners.push((success, deferred) =>
-          success ? resolve() : reject(deferred ? new ThumbnailRequestDeferredError() : undefined),
-        );
+        existingListeners.push((success, deferred) => {
+          console.info('[perf] thumbnail shared wait', {
+            path: msg.filePath,
+            elapsedMs: Number((performance.now() - requestCallStartedAt).toFixed(2)),
+          });
+          success ? resolve() : reject(deferred ? new ThumbnailRequestDeferredError() : undefined);
+        });
         // A cell may have moved from overscan into the visible viewport while
         // its request is still queued. Promote that existing request in-place.
         const currentRequest = workerByFileId.get(file.id);
@@ -179,7 +187,7 @@ export const generateThumbnailUsingWorker = action(
 
       thumbnailDiagnostics.requested++;
       thumbnailDiagnostics.inFlight++;
-      requestStartedAt.set(msg.fileId, Date.now());
+      requestStartedAt.set(msg.fileId, performance.now());
 
       if (onPreview) previewListeners.set(msg.fileId, [onPreview]);
       listeners.set(msg.fileId, [
@@ -217,6 +225,7 @@ export const generateThumbnailUsingWorker = action(
           }
           return;
         }
+        msg.workerEnqueuedAt = performance.now();
         if (transfer) {
           workers[workerIndex].postMessage(msg, transfer);
         } else {
@@ -258,6 +267,15 @@ export const useWorkerListener = () => {
           return;
         }
         previewListeners.delete(e.data.fileId);
+        const request = workerByFileId.get(e.data.fileId);
+        if (request?.workerIndex === workerIndex && e.data.queueWaitMs !== undefined) {
+          console.info('[perf] thumbnail renderer roundtrip', {
+            fileId: e.data.fileId,
+            queueWaitMs: Number(e.data.queueWaitMs.toFixed(2)),
+            generationMs: e.data.generationMs === undefined ? undefined : Number(e.data.generationMs.toFixed(2)),
+            totalMs: Number((performance.now() - (requestStartedAt.get(e.data.fileId) ?? performance.now())).toFixed(2)),
+          });
+        }
         finishRequest(
           e.data.fileId,
           e.data.success !== false,

@@ -15,6 +15,7 @@ import { ITransform } from './Masonry/layout-helpers';
 import { GalleryVideoPlaybackMode } from 'src/frontend/stores/UiStore';
 import { thumbnailMaxSize } from 'common/config';
 import { IncrementalTagItems } from 'src/frontend/components/FileTagsEditor';
+import { reportFirstVisibleExplorerTile } from 'src/frontend/performance/ExplorerPerf';
 
 interface ItemProps {
   file: ClientFile;
@@ -157,7 +158,7 @@ export const Thumbnail = observer(
     thumbnailPriority = 0,
     isScrolling = false,
   }: ItemProps) => {
-    const { uiStore, imageLoader } = useStore();
+    const { uiStore, fileStore, imageLoader } = useStore();
     const { thumbnailPath, isBroken } = file;
     const [isPlaying, setIsPlaying] = useState<boolean | undefined>(undefined);
     const [useVideo, setUseVideo] = useState<boolean>(false);
@@ -287,6 +288,7 @@ export const Thumbnail = observer(
 
     const handleLoad = useCallback(() => {
       if (fileIdRef.current === fileId) {
+        if (fileStore.isExplorerMode) reportFirstVisibleExplorerTile(file.absolutePath);
         setLoadedSrc(displaySrc);
         setLoadedFileId(fileId);
         if (videoRef.current) {

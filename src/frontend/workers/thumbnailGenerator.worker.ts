@@ -186,6 +186,8 @@ async function processMessage(data: IThumbnailMessage) {
     // console.log('Processing thumbnail message', { data, curParallelThumbnails, queue });
     if (curParallelThumbnails < MAX_PARALLEL_THUMBNAILS) {
       curParallelThumbnails++;
+      const generationStartedAt = performance.now();
+      const queueWaitMs = data.workerEnqueuedAt === undefined ? 0 : generationStartedAt - data.workerEnqueuedAt;
       const thumbnailPath = await generateAndStoreThumbnail(
         filePath,
         thumbnailFilePath,
@@ -194,11 +196,20 @@ async function processMessage(data: IThumbnailMessage) {
         data.requestToken,
         data.previewOnly,
       );
+      const generationMs = performance.now() - generationStartedAt;
+      console.info('[perf] thumbnail worker', {
+        path: filePath,
+        queueWaitMs: Number(queueWaitMs.toFixed(2)),
+        generationMs: Number(generationMs.toFixed(2)),
+        success: Boolean(thumbnailPath),
+      });
       const response: IThumbnailMessageResponse = {
         fileId,
         thumbnailPath: thumbnailPath || filePath,
         success: Boolean(thumbnailPath),
         requestToken: data.requestToken,
+        queueWaitMs,
+        generationMs,
       };
       ctx.postMessage(response);
       curParallelThumbnails--;

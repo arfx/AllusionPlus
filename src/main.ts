@@ -868,8 +868,11 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
   if (typeof absolutePath !== 'string' || absolutePath.length === 0 || !path.isAbsolute(absolutePath)) {
     throw new Error('Explorer requires an absolute directory path.');
   }
+  const readStartedAt = performance.now();
   const entries = await fse.readdir(absolutePath, { withFileTypes: true });
-  return entries
+  const readDurationMs = performance.now() - readStartedAt;
+  const sortStartedAt = performance.now();
+  const result = entries
     .filter((entry) => entry.isDirectory() || entry.isFile())
     .map((entry) => ({
       name: entry.name,
@@ -882,6 +885,13 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
       }
       return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     });
+  console.info('[perf] explorerReadDirectory main fs', {
+    path: absolutePath,
+    entryCount: result.length,
+    readdirMs: Number(readDurationMs.toFixed(2)),
+    mapAndSortMs: Number((performance.now() - sortStartedAt).toFixed(2)),
+  });
+  return result;
 });
 
 MainMessenger.onTrashFile((absolutePath) => shell.trashItem(absolutePath));

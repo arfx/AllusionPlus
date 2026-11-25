@@ -97,7 +97,17 @@ export class MainMessenger {
 
   static onExplorerReadDirectory = (
     cb: (absolutePath: string) => Promise<ExplorerDirectoryEntry[]>,
-  ) => ipcMain.handle(EXPLORER_READ_DIRECTORY, (_, absolutePath: string) => cb(absolutePath));
+  ) => ipcMain.handle(EXPLORER_READ_DIRECTORY, async (_, absolutePath: string) => {
+    const startedAt = performance.now();
+    try {
+      return await cb(absolutePath);
+    } finally {
+      console.info(
+        `[perf] explorerReadDirectory main ${Math.round(performance.now() - startedAt)} ms`,
+        absolutePath,
+      );
+    }
+  });
 
   static onTrashFile = (cb: (absolutePath: string) => Promise<void>) =>
     ipcMain.handle(TRASH_FILE, async (_, absolutePath) => {

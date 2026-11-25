@@ -86,8 +86,17 @@ export class RendererMessenger {
 
   static getPath = (name: SYSTEM_PATHS): Promise<string> => ipcRenderer.invoke(GET_PATH, name);
 
-  static explorerReadDirectory = (absolutePath: string): Promise<ExplorerDirectoryEntry[]> =>
-    ipcRenderer.invoke(EXPLORER_READ_DIRECTORY, absolutePath);
+  static explorerReadDirectory = async (absolutePath: string): Promise<ExplorerDirectoryEntry[]> => {
+    const startedAt = performance.now();
+    try {
+      return await ipcRenderer.invoke(EXPLORER_READ_DIRECTORY, absolutePath);
+    } finally {
+      console.info(
+        `[perf] explorerReadDirectory renderer ${Math.round(performance.now() - startedAt)} ms`,
+        absolutePath,
+      );
+    }
+  };
 
   static trashFile = (absolutePath: string): Promise<Error | undefined> =>
     ipcRenderer.invoke(TRASH_FILE, absolutePath);
