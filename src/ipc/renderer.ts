@@ -1,4 +1,5 @@
 import { ipcRenderer } from 'electron';
+import { recordPerf } from '../../common/perf';
 import path from 'path';
 import {
   ADD_TAGS_TO_FILE,
@@ -9,6 +10,10 @@ import {
   FULL_SCREEN_CHANGED,
   GET_PATH,
   EXPLORER_READ_DIRECTORY,
+  EXPLORER_SCAN_FILES,
+  EXPLORER_SCAN_CHUNK,
+  EXPLORER_CANCEL_SCAN,
+  ExplorerScanChunk,
   ExplorerDirectoryEntry,
   GET_TAGS,
   GET_VERSION,
@@ -86,16 +91,19 @@ export class RendererMessenger {
 
   static getPath = (name: SYSTEM_PATHS): Promise<string> => ipcRenderer.invoke(GET_PATH, name);
 
-  static explorerReadDirectory = async (absolutePath: string): Promise<ExplorerDirectoryEntry[]> => {
-    const startedAt = performance.now();
-    try {
-      return await ipcRenderer.invoke(EXPLORER_READ_DIRECTORY, absolutePath);
-    } finally {
-      console.info(
-        `[perf] explorerReadDirectory renderer ${Math.round(performance.now() - startedAt)} ms`,
-        absolutePath,
-      );
-    }
+  static explorerReadDirectory = (absolutePath: string): Promise<ExplorerDirectoryEntry[]> =>
+    ipcRenderer.invoke(EXPLORER_READ_DIRECTORY, absolutePath);
+
+  static startExplorerScan = (absolutePath: string, recursive: boolean, scanId: number): void =>
+    ipcRenderer.send(EXPLORER_SCAN_FILES, absolutePath, recursive, scanId);
+
+  static cancelExplorerScan = (scanId: number): void =>
+    ipcRenderer.send(EXPLORER_CANCEL_SCAN, scanId);
+
+  static onExplorerScanChunk = (callback: (chunk: ExplorerScanChunk) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, chunk: ExplorerScanChunk) => callback(chunk);
+    ipcRenderer.on(EXPLORER_SCAN_CHUNK, listener);
+    return () => ipcRenderer.removeListener(EXPLORER_SCAN_CHUNK, listener);
   };
 
   static trashFile = (absolutePath: string): Promise<Error | undefined> =>

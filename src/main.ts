@@ -23,9 +23,17 @@ import TrayIconMac from '../resources/logo/png/black/allusionTemplate@2x.png'; /
 import ClipServer, { IImportItem } from './clipper/server';
 import { createBugReport, githubUrl } from '../common/config';
 import { IS_DEV, IS_MAC } from '../common/process';
+import { recordPerf, recordPerfEvent } from '../common/perf';
 import { TagDTO, ROOT_TAG_ID } from './api/tag';
 import { MainMessenger } from './ipc/main';
-import { WindowSystemButtonPress, ExplorerDirectoryEntry } from './ipc/messages';
+import {
+  WindowSystemButtonPress,
+  ExplorerDirectoryEntry,
+  EXPLORER_SCAN_CHUNK,
+  EXPLORER_SCAN_FILES,
+  EXPLORER_CANCEL_SCAN,
+  ExplorerScanChunk,
+} from './ipc/messages';
 
 // sets the userData path to the executables directory if the installation is portable
 const portablePath = process.env.PORTABLE_EXECUTABLE_DIR as string;
@@ -869,11 +877,26 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
     throw new Error('Explorer requires an absolute directory path.');
   }
   const readStartedAt = performance.now();
-  const entries = await fse.readdir(absolutePath, { withFileTypes: true });
+  let entries: import('fs').Dirent[];
+  try {
+    entries = await fse.readdir(absolutePath, { withFileTypes: true });
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'EPERM' || code === 'EACCES') {
+      recordPerfEvent('explorer.read', 'permissionSkips');
+      return [];
+    }
+    throw error;
+  }
   const readDurationMs = performance.now() - readStartedAt;
+  recordPerf('explorer.readdir', readDurationMs, {
+    thresholdMs: 50,
+    detail: `entries=${entries.length}`,
+  });
   const sortStartedAt = performance.now();
+  const ignoredDirectories = new Set(['recovery', 'system volume information', '$recycle.bin', 'node_modules', '.git']);
   const result = entries
-    .filter((entry) => entry.isDirectory() || entry.isFile())
+    .filter((entry) => (entry.isDirectory() || entry.isFile()) && !(entry.isDirectory() && ignoredDirectories.has(entry.name.toLocaleLowerCase())))
     .map((entry) => ({
       name: entry.name,
       path: path.join(absolutePath, entry.name),
@@ -885,13 +908,72 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
       }
       return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     });
-  console.info('[perf] explorerReadDirectory main fs', {
-    path: absolutePath,
-    entryCount: result.length,
-    readdirMs: Number(readDurationMs.toFixed(2)),
-    mapAndSortMs: Number((performance.now() - sortStartedAt).toFixed(2)),
-  });
+  recordPerf('explorer.sort', performance.now() - sortStartedAt);
   return result;
+});
+
+MainMessenger.onExplorerScanFiles(async (selectedPath, recursive, scanId, sender) => {
+  const systemDirectories = new Set([
+    'recovery', 'system volume information', '$recycle.bin', 'node_modules', '.git',
+  ]);
+  const directoryQueue = [selectedPath];
+  const visited = new Set<string>([selectedPath]);
+  const chunk: string[] = [];
+  let skippedPermissionErrors = 0;
+  try {
+    while (directoryQueue.length && !MainMessenger.isExplorerScanCancelled(scanId)) {
+      const directory = directoryQueue.pop()!;
+      let entries: import('fs').Dirent[];
+      const readdirStartedAt = performance.now();
+      try {
+        entries = await fse.readdir(directory, { withFileTypes: true });
+        recordPerf('explorer.readdir', performance.now() - readdirStartedAt, {
+          thresholdMs: 50,
+          detail: `entries=${entries.length}`,
+        });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'EPERM' || code === 'EACCES') {
+          skippedPermissionErrors++;
+          recordPerfEvent('explorer.scan', 'permissionSkips');
+          continue;
+        }
+        throw error;
+      }
+      recordPerfEvent('explorer.scan', 'directories');
+      for (const entry of entries) {
+        if (entry.isDirectory() && recursive) {
+          if (!systemDirectories.has(entry.name.toLocaleLowerCase())) {
+            const childPath = path.join(directory, entry.name);
+            if (!visited.has(childPath)) {
+              visited.add(childPath);
+              directoryQueue.push(childPath);
+            }
+          }
+        } else if (entry.isFile()) {
+          chunk.push(path.join(directory, entry.name));
+          if (chunk.length >= 200) {
+            MainMessenger.sendExplorerScanChunk(sender, { scanId, paths: chunk.splice(0, chunk.length) });
+          }
+        }
+      }
+    }
+    if (chunk.length && !MainMessenger.isExplorerScanCancelled(scanId)) {
+      MainMessenger.sendExplorerScanChunk(sender, { scanId, paths: chunk.splice(0, chunk.length) });
+    }
+    if (!MainMessenger.isExplorerScanCancelled(scanId)) {
+      recordPerfEvent('explorer.scan', 'filesScanned', visited.size);
+      MainMessenger.sendExplorerScanChunk(sender, { scanId, done: true });
+    }
+  } catch (error) {
+    MainMessenger.sendExplorerScanChunk(sender, {
+      scanId,
+      done: true,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    MainMessenger.finishExplorerScan(scanId);
+  }
 });
 
 MainMessenger.onTrashFile((absolutePath) => shell.trashItem(absolutePath));

@@ -34,6 +34,7 @@ import {
 } from 'src/api/extraProperty';
 import { InheritedTagsVisibilityModeType } from './UiStore';
 import { clamp } from 'common/core';
+import { recordPerf } from '../../../common/perf';
 import { RendererMessenger } from 'src/ipc/renderer';
 import { serializeDate } from 'src/backend/schemaTypes';
 
@@ -1308,7 +1309,6 @@ class FileStore {
     let statCount = 0;
     let statTotalMs = 0;
     let statMaxMs = 0;
-    let slowestStats: Array<{ path: string; durationMs: number }> = [];
     this.isExplorerMode = true;
     const taskId = await this.newFetchTaskId();
     const preparedFiles = await promiseAllLimit(
@@ -1322,15 +1322,7 @@ class FileStore {
             statCount++;
             statTotalMs += statDurationMs;
             statMaxMs = Math.max(statMaxMs, statDurationMs);
-            console.debug('[perf] Explorer file stat', {
-              path: absolutePath,
-              durationMs: Number(statDurationMs.toFixed(2)),
-            });
-            if (statDurationMs >= 10) {
-              slowestStats.push({ path: absolutePath, durationMs: statDurationMs });
-              slowestStats.sort((a, b) => b.durationMs - a.durationMs);
-              slowestStats = slowestStats.slice(0, 10);
-            }
+            recordPerf('explorer.stat', statDurationMs);
             if (!stats.isFile()) return undefined;
             const fileStats = {
               absolutePath,
@@ -1392,16 +1384,7 @@ class FileStore {
       this.fileListLastRefetch = new Date();
     });
     this.rootStore.uiStore.clearFileSelection();
-    console.info('[perf] FileStore.setExplorerFiles', {
-      pathCount: paths.length,
-      preparedCount: files.length,
-      totalMs: Math.round(performance.now() - startedAt),
-      statCount,
-      statTotalMs: Math.round(statTotalMs),
-      statAverageMs: statCount ? Number((statTotalMs / statCount).toFixed(2)) : 0,
-      statMaxMs: Number(statMaxMs.toFixed(2)),
-      slowestStats: slowestStats.map(({ path, durationMs }) => ({ path, durationMs: Number(durationMs.toFixed(2)) })),
-    });
+    recordPerf('explorer.prepare', performance.now() - startedAt);
   }
 
   /** Leaves the temporary Explorer view before switching to a watched Location search. */

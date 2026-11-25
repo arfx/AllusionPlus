@@ -1,4 +1,8 @@
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
+import { recordPerf } from '../../common/perf';
+
+const cancelledExplorerScans = new Set<number>();
+const activeExplorerScans = new Set<number>();
 import {
   ADD_TAGS_TO_FILE,
   CHECK_FOR_UPDATES,
@@ -8,6 +12,10 @@ import {
   FULL_SCREEN_CHANGED,
   GET_PATH,
   EXPLORER_READ_DIRECTORY,
+  EXPLORER_SCAN_FILES,
+  EXPLORER_SCAN_CHUNK,
+  EXPLORER_CANCEL_SCAN,
+  ExplorerScanChunk,
   ExplorerDirectoryEntry,
   GET_TAGS,
   GET_VERSION,
@@ -102,12 +110,32 @@ export class MainMessenger {
     try {
       return await cb(absolutePath);
     } finally {
-      console.info(
-        `[perf] explorerReadDirectory main ${Math.round(performance.now() - startedAt)} ms`,
-        absolutePath,
-      );
+      recordPerf('explorer.ipc', performance.now() - startedAt);
     }
   });
+
+  static onExplorerScanFiles = (
+    cb: (absolutePath: string, recursive: boolean, scanId: number, sender: WebContents) => Promise<void>,
+  ) => {
+    ipcMain.on(EXPLORER_SCAN_FILES, (event, absolutePath: string, recursive: boolean, scanId: number) => {
+      activeExplorerScans.add(scanId);
+      void cb(absolutePath, recursive, scanId, event.sender);
+    });
+    ipcMain.on(EXPLORER_CANCEL_SCAN, (_, scanId: number) => {
+      if (activeExplorerScans.has(scanId)) cancelledExplorerScans.add(scanId);
+    });
+  };
+
+  static sendExplorerScanChunk = (sender: WebContents, chunk: ExplorerScanChunk) => {
+    if (!sender.isDestroyed()) sender.send(EXPLORER_SCAN_CHUNK, chunk);
+  };
+
+  static isExplorerScanCancelled = (scanId: number): boolean => cancelledExplorerScans.has(scanId);
+
+  static finishExplorerScan = (scanId: number): void => {
+    cancelledExplorerScans.delete(scanId);
+    activeExplorerScans.delete(scanId);
+  };
 
   static onTrashFile = (cb: (absolutePath: string) => Promise<void>) =>
     ipcMain.handle(TRASH_FILE, async (_, absolutePath) => {
