@@ -183,6 +183,7 @@ type PersistentPreferenceFields =
   | 'inheritedTagsVisibilityMode'
   | 'isThumbnailFilenameOverlayEnabled'
   | 'isThumbnailResolutionOverlayEnabled'
+  | 'isThumbnailLoadingOverlayEnabled'
   | 'outlinerWidth'
   | 'outlinerExpansion'
   | 'outlinerHeights'
@@ -247,6 +248,7 @@ class UiStore {
     'visible-when-inherited';
   @observable isThumbnailFilenameOverlayEnabled: boolean = false;
   @observable isThumbnailResolutionOverlayEnabled: boolean = false;
+  @observable isThumbnailLoadingOverlayEnabled: boolean = true;
   /** Refresh locations and detect file changes at startup  */
   @observable isRefreshLocationsStartupEnabled: boolean = false;
   /** Whether to restore the last search query on start-up */
@@ -582,6 +584,10 @@ class UiStore {
 
   @action.bound toggleThumbnailResolutionOverlay(): void {
     this.isThumbnailResolutionOverlayEnabled = !this.isThumbnailResolutionOverlayEnabled;
+  }
+
+  @action.bound toggleThumbnailLoadingOverlay(): void {
+    this.isThumbnailLoadingOverlayEnabled = !this.isThumbnailLoadingOverlayEnabled;
   }
 
   @action.bound setLargeThumbFullResThreshold(value: number): void {
@@ -1889,6 +1895,7 @@ class UiStore {
         this.showTreeConnectorLines = Boolean(prefs.showTreeConnectorLines ?? false);
         this.isThumbnailFilenameOverlayEnabled = Boolean(prefs.isThumbnailFilenameOverlayEnabled ?? false); // eslint-disable-line prettier/prettier
         this.isThumbnailResolutionOverlayEnabled = Boolean(prefs.isThumbnailResolutionOverlayEnabled ?? false); // eslint-disable-line prettier/prettier
+        this.isThumbnailLoadingOverlayEnabled = Boolean(prefs.isThumbnailLoadingOverlayEnabled ?? true);
         this.areFileEditorsDocked = Boolean(prefs.areFileEditorsDocked ?? false);
         this.isFileTagsEditorOpen = Boolean(prefs.isFileTagsEditorOpen ?? false);
         this.isClearTagSelectorsOnSelectEnabled = Boolean(prefs.isClearTagSelectorsOnSelectEnabled ?? false); // eslint-disable-line prettier/prettier
@@ -1981,6 +1988,7 @@ class UiStore {
       thumbnailTagOverlayMode: this.thumbnailTagOverlayMode,
       inheritedTagsVisibilityMode: this.inheritedTagsVisibilityMode,
       isThumbnailResolutionOverlayEnabled: this.isThumbnailResolutionOverlayEnabled,
+      isThumbnailLoadingOverlayEnabled: this.isThumbnailLoadingOverlayEnabled,
       outlinerExpansion: this.outlinerExpansion.slice(),
       outlinerHeights: this.outlinerHeights.slice(),
       explorerRootDirectory: this.explorerRootDirectory,
