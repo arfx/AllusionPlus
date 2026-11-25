@@ -291,10 +291,8 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
 
       const entries = await readDirectory(entry.path, entry.path === EXPLORER_COMPUTER_ROOT);
       const hasSubfolders = entries.some((item) => item.isDirectory);
-      setDirectories((previous) => ({
-        ...previous,
-        [entry.path]: { entries, loading: false, hasSubfolders },
-      }));
+      // readDirectory owns the complete loading/error state. Do not overwrite
+      // its error result with an apparently successful empty directory.
       if (hasSubfolders) {
         setExpandedPaths((previous) => new Set(previous).add(entry.path));
       }
