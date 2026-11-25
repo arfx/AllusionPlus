@@ -1,10 +1,31 @@
+import { isPerfEnabled, recordPerf } from '../../../common/perf';
+
 let folderLoadStartedAt: number | undefined;
 let folderLoadPath: string | undefined;
 let firstVisibleTileReported = false;
+let visibleTilesRemaining = 0;
+let allVisibleStartedAt: number | undefined;
+
+export const startExplorerVisibleTileTiming = (visibleCount: number): void => {
+  visibleTilesRemaining = visibleCount;
+  if (!isPerfEnabled()) return;
+  allVisibleStartedAt = visibleCount ? performance.now() : undefined;
+};
+
+export const reportVisibleExplorerTileLoaded = (): void => {
+  if (!isPerfEnabled() || allVisibleStartedAt === undefined || visibleTilesRemaining <= 0) return;
+  visibleTilesRemaining--;
+  if (visibleTilesRemaining === 0) {
+    recordPerf('explorer.allTiles', performance.now() - allVisibleStartedAt);
+    allVisibleStartedAt = undefined;
+  }
+};
 
 /** Starts a temporary end-to-end timer when an Explorer folder scan begins. */
 export const startExplorerFolderTiming = (absolutePath: string): void => {
   folderLoadStartedAt = performance.now();
+  allVisibleStartedAt = undefined;
+  visibleTilesRemaining = 0;
   folderLoadPath = absolutePath;
   firstVisibleTileReported = false;
 };
@@ -18,8 +39,7 @@ export const reportFirstVisibleExplorerTile = (absolutePath: string): void => {
   const separator = folder.includes('/') ? '/' : '\\';
   if (file !== folder && !file.startsWith(`${folder}${separator}`)) return;
   firstVisibleTileReported = true;
-  console.info(
-    `[perf] Explorer first visible tile: ${Math.round(performance.now() - folderLoadStartedAt)} ms`,
-    folderLoadPath,
-  );
+  if (isPerfEnabled()) {
+    recordPerf('explorer.firstTile', performance.now() - folderLoadStartedAt);
+  }
 };

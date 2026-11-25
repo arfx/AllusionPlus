@@ -1,4 +1,5 @@
 import fse from 'fs-extra';
+import { setPerfGauge } from '../../../common/perf';
 
 import { thumbnailFormat, thumbnailMaxSize } from 'common/config';
 import { IThumbnailMessage, IThumbnailMessageResponse } from '../image/ThumbnailGeneration';
@@ -25,10 +26,12 @@ const renderImageBuffer = async (
 const generateThumbnailData = async (
   filePath: string,
   imageBitmap?: ImageBitmap,
-): Promise<{ preview: ArrayBuffer | null; thumbnail: ArrayBuffer | null }> => {
+): Promise<{ preview: ArrayBuffer | null; thumbnail: ArrayBuffer | null; decodeMs: number; encodeMs: number }> => {
   let inputBuffer: Buffer | null = null;
   let inputBlob: Blob | null = null;
   let img: ImageBitmap | null = null;
+  const decodeStartedAt = performance.now();
+  let decodeMs = 0;
   try {
     if (imageBitmap !== undefined) img = imageBitmap;
     else {
@@ -36,6 +39,8 @@ const generateThumbnailData = async (
       inputBlob = new Blob([inputBuffer]);
       img = await createImageBitmap(inputBlob);
     }
+    decodeMs = performance.now() - decodeStartedAt;
+    const encodeStartedAt = performance.now();
     const maxEdge = Math.max(img.width, img.height);
     const scaleTo = (maxSize: number) => {
       const scale = Math.min(1, maxSize / maxEdge);
@@ -52,10 +57,10 @@ const generateThumbnailData = async (
     const thumbnail = await renderImageBuffer(
       img, thumbnailSize.width, thumbnailSize.height, maxEdge <= thumbnailMaxSize ? 1 : 0.75,
     );
-    return { preview, thumbnail };
+    return { preview, thumbnail, decodeMs, encodeMs: performance.now() - encodeStartedAt };
   } catch (error) {
     console.error('Error generating thumbnail data:', error);
-    return { preview: null, thumbnail: null };
+    return { preview: null, thumbnail: null, decodeMs, encodeMs: 0 };
   } finally {
     try { img?.close(); } catch (error) { console.warn('Failed to close ImageBitmap:', error); }
     inputBuffer = null;
@@ -90,6 +95,8 @@ const generateAndStoreThumbnail = async (
     }
   }
   const data = await generateThumbnailData(filePath, imageBitmap);
+  (generateAndStoreThumbnail as any).lastDecodeMs = data.decodeMs;
+  (generateAndStoreThumbnail as any).lastEncodeMs = data.encodeMs;
   if (!data.thumbnail) return '';
   if (data.preview) {
     const previewPath = `${thumbnailFilePath}.preview.${thumbnailFormat}`;
@@ -141,6 +148,7 @@ const insertIntoQueue = (data: IThumbnailMessage) => {
     insertAt = queue.length;
   }
   queue.splice(insertAt, 0, data);
+  setPerfGauge('thumbnail', 'queueLength', queue.length);
 };
 
 const addToQueue = (data: IThumbnailMessage) => {
@@ -186,8 +194,11 @@ async function processMessage(data: IThumbnailMessage) {
     // console.log('Processing thumbnail message', { data, curParallelThumbnails, queue });
     if (curParallelThumbnails < MAX_PARALLEL_THUMBNAILS) {
       curParallelThumbnails++;
+      setPerfGauge('thumbnail', 'queueLength', queue.length);
       const generationStartedAt = performance.now();
       const queueWaitMs = data.workerEnqueuedAt === undefined ? 0 : generationStartedAt - data.workerEnqueuedAt;
+      (generateAndStoreThumbnail as any).lastDecodeMs = 0;
+      (generateAndStoreThumbnail as any).lastEncodeMs = 0;
       const thumbnailPath = await generateAndStoreThumbnail(
         filePath,
         thumbnailFilePath,
@@ -197,12 +208,7 @@ async function processMessage(data: IThumbnailMessage) {
         data.previewOnly,
       );
       const generationMs = performance.now() - generationStartedAt;
-      console.info('[perf] thumbnail worker', {
-        path: filePath,
-        queueWaitMs: Number(queueWaitMs.toFixed(2)),
-        generationMs: Number(generationMs.toFixed(2)),
-        success: Boolean(thumbnailPath),
-      });
+      const writeMs = Math.max(0, generationMs - ((generateAndStoreThumbnail as any).lastDecodeMs ?? 0) - ((generateAndStoreThumbnail as any).lastEncodeMs ?? 0));
       const response: IThumbnailMessageResponse = {
         fileId,
         thumbnailPath: thumbnailPath || filePath,
@@ -210,6 +216,10 @@ async function processMessage(data: IThumbnailMessage) {
         requestToken: data.requestToken,
         queueWaitMs,
         generationMs,
+        decodeMs: (generateAndStoreThumbnail as any).lastDecodeMs ?? 0,
+        encodeMs: (generateAndStoreThumbnail as any).lastEncodeMs ?? 0,
+        writeMs,
+        queueLength: queue.length,
       };
       ctx.postMessage(response);
       curParallelThumbnails--;
@@ -251,6 +261,7 @@ ctx.addEventListener('message', async (event) => {
     );
     if (index !== -1) {
       const [cancelled] = queue.splice(index, 1);
+      setPerfGauge('thumbnail', 'queueLength', queue.length);
       releaseImageBitmap(cancelled);
       console.debug(`Cancelled request for fileId: ${event.data.fileId}`);
     }

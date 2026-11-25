@@ -15,7 +15,10 @@ import { ITransform } from './Masonry/layout-helpers';
 import { GalleryVideoPlaybackMode } from 'src/frontend/stores/UiStore';
 import { thumbnailMaxSize } from 'common/config';
 import { IncrementalTagItems } from 'src/frontend/components/FileTagsEditor';
-import { reportFirstVisibleExplorerTile } from 'src/frontend/performance/ExplorerPerf';
+import {
+  reportFirstVisibleExplorerTile,
+  reportVisibleExplorerTileLoaded,
+} from 'src/frontend/performance/ExplorerPerf';
 
 interface ItemProps {
   file: ClientFile;
@@ -288,7 +291,10 @@ export const Thumbnail = observer(
 
     const handleLoad = useCallback(() => {
       if (fileIdRef.current === fileId) {
-        if (fileStore.isExplorerMode) reportFirstVisibleExplorerTile(file.absolutePath);
+        if (fileStore.isExplorerMode) {
+          reportFirstVisibleExplorerTile(file.absolutePath);
+          reportVisibleExplorerTileLoaded();
+        }
         setLoadedSrc(displaySrc);
         setLoadedFileId(fileId);
         if (videoRef.current) {

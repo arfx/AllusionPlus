@@ -5,6 +5,7 @@ import StreamZip from 'node-stream-zip';
 
 import ExifIO from 'common/ExifIO';
 import { thumbnailFormat, thumbnailMaxSize } from 'common/config';
+import { recordPerfEvent } from '../../../common/perf';
 import { FileDTO, IMG_EXTENSIONS_TYPE } from '../../api/file';
 import { ClientFile } from '../entities/File';
 import ExrLoader from './ExrLoader';
@@ -196,9 +197,11 @@ class ImageLoader {
     if (await fse.pathExists(thumbnailPath)) {
       const thumbnailStats = await fse.stat(thumbnailPath);
       if (thumbnailStats.mtimeMs >= sourceMtime || sourceMtime > Date.now()) {
+        recordPerfEvent('thumbnail', 'cacheHits');
         return `${thumbnailPath}?v=${sourceMtime}`;
       }
     }
+    recordPerfEvent('thumbnail', 'cacheMisses');
     const handlerType = getHandler(normalizedExtension);
     switch (handlerType) {
       case 'web':
@@ -339,6 +342,7 @@ class ImageLoader {
       // If this exact source version was already generated in this session,
       // trust that result instead of repeatedly decoding it.
       if (this.generatedSourceMtimes.get(file.id) === sourceMtime) {
+        recordPerfEvent('thumbnail', 'cacheHits');
         return false;
       }
 
@@ -347,10 +351,12 @@ class ImageLoader {
       // change time and is not a reliable indication of thumbnail freshness on
       // every filesystem.
       if (thumbStats.mtimeMs >= sourceMtime || sourceMtime > Date.now()) {
+        recordPerfEvent('thumbnail', 'cacheHits');
         return false;
       }
     }
 
+    recordPerfEvent('thumbnail', 'cacheMisses');
     const handlerType = getHandler(extension);
     switch (handlerType) {
       case 'web':

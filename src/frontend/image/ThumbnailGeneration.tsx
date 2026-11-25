@@ -4,6 +4,7 @@ import path from 'path';
 import { useEffect } from 'react';
 
 import { thumbnailFormat } from 'common/config';
+import { recordPerf, recordPerfEvent, setPerfGauge } from '../../../common/perf';
 import { ID } from '../../api/id';
 import { encodeFilePath, isFileExtensionVideo } from 'common/fs';
 
@@ -34,6 +35,10 @@ export interface IThumbnailMessageResponse {
   requestToken: number;
   queueWaitMs?: number;
   generationMs?: number;
+  decodeMs?: number;
+  encodeMs?: number;
+  writeMs?: number;
+  queueLength?: number;
 }
 
 // TODO: Look into NativeImage operators: https://www.electronjs.org/docs/api/native-image#imageresizeoptions
@@ -86,6 +91,8 @@ const thumbnailDiagnostics: ThumbnailDiagnostics = {
   lastDurationMs: 0,
 };
 const requestStartedAt = new Map<ID, number>();
+const thumbnailRequestMetadata = new Map<ID, { startedAt: number; extension: string }>();
+const queueLengthByWorker = new Map<number, number>();
 const previewListeners = new Map<ID, PreviewCallback[]>();
 
 export const getThumbnailDiagnostics = (): ThumbnailDiagnostics => ({ ...thumbnailDiagnostics });
@@ -111,8 +118,10 @@ const finishRequest = (fileId: ID, success: boolean, requestToken?: number, defe
   }
   workerByFileId.delete(fileId);
   const startedAt = requestStartedAt.get(fileId);
+  setPerfGauge('thumbnail', 'queueLength', workerByFileId.size);
   if (startedAt !== undefined) {
     const duration = performance.now() - startedAt;
+    thumbnailRequestMetadata.delete(fileId);
     requestStartedAt.delete(fileId);
     thumbnailDiagnostics.inFlight = Math.max(0, thumbnailDiagnostics.inFlight - 1);
     thumbnailDiagnostics.lastDurationMs = duration;
@@ -159,16 +168,14 @@ export const generateThumbnailUsingWorker = action(
       // Reuse an in-flight request instead of starting another timer or worker job.
       const existingListeners = listeners.get(file.id);
       if (existingListeners) {
+        recordPerfEvent('thumbnail', 'sharedRequests');
         if (onPreview) {
           const callbacks = previewListeners.get(file.id) ?? [];
           callbacks.push(onPreview);
           previewListeners.set(file.id, callbacks);
         }
         existingListeners.push((success, deferred) => {
-          console.info('[perf] thumbnail shared wait', {
-            path: msg.filePath,
-            elapsedMs: Number((performance.now() - requestCallStartedAt).toFixed(2)),
-          });
+          recordPerf('thumbnail.sharedWait', performance.now() - requestCallStartedAt);
           success ? resolve() : reject(deferred ? new ThumbnailRequestDeferredError() : undefined);
         });
         // A cell may have moved from overscan into the visible viewport while
@@ -188,6 +195,7 @@ export const generateThumbnailUsingWorker = action(
       thumbnailDiagnostics.requested++;
       thumbnailDiagnostics.inFlight++;
       requestStartedAt.set(msg.fileId, performance.now());
+      thumbnailRequestMetadata.set(msg.fileId, { startedAt: requestCallStartedAt, extension: file.extension });
 
       if (onPreview) previewListeners.set(msg.fileId, [onPreview]);
       listeners.set(msg.fileId, [
@@ -197,6 +205,8 @@ export const generateThumbnailUsingWorker = action(
 
       const workerIndex = lastSubmittedWorker;
       lastSubmittedWorker = (lastSubmittedWorker + 1) % workers.length;
+      queueLengthByWorker.set(workerIndex, (queueLengthByWorker.get(workerIndex) ?? 0) + 1);
+      setPerfGauge('thumbnail', 'queueLength', [...queueLengthByWorker.values()].reduce((sum, length) => sum + length, 0));
       workerByFileId.set(msg.fileId, { workerIndex, requestToken: msg.requestToken });
 
       const timeoutId = window.setTimeout(() => {
@@ -269,12 +279,17 @@ export const useWorkerListener = () => {
         previewListeners.delete(e.data.fileId);
         const request = workerByFileId.get(e.data.fileId);
         if (request?.workerIndex === workerIndex && e.data.queueWaitMs !== undefined) {
-          console.info('[perf] thumbnail renderer roundtrip', {
-            fileId: e.data.fileId,
-            queueWaitMs: Number(e.data.queueWaitMs.toFixed(2)),
-            generationMs: e.data.generationMs === undefined ? undefined : Number(e.data.generationMs.toFixed(2)),
-            totalMs: Number((performance.now() - (requestStartedAt.get(e.data.fileId) ?? performance.now())).toFixed(2)),
-          });
+          const metadata = thumbnailRequestMetadata.get(e.data.fileId);
+          const totalMs = performance.now() - (metadata?.startedAt ?? performance.now());
+          recordPerf('thumbnail.total', totalMs, { thresholdMs: 500, detail: `type=${metadata?.extension ?? 'unknown'}` });
+          const queueWaitMs = e.data.queueWaitMs ?? 0;
+          queueLengthByWorker.set(workerIndex, Math.max(0, (queueLengthByWorker.get(workerIndex) ?? 1) - 1));
+          setPerfGauge('thumbnail', 'queueLength', e.data.queueLength ?? [...queueLengthByWorker.values()].reduce((sum, length) => sum + length, 0));
+          recordPerf('thumbnail.queueWait', queueWaitMs);
+          if (e.data.decodeMs !== undefined) recordPerf('thumbnail.decode', e.data.decodeMs);
+          if (e.data.encodeMs !== undefined) recordPerf('thumbnail.encode', e.data.encodeMs);
+          if (e.data.writeMs !== undefined) recordPerf('thumbnail.write', e.data.writeMs);
+          recordPerfEvent('thumbnail', e.data.success === false ? 'failed' : 'generated');
         }
         finishRequest(
           e.data.fileId,
