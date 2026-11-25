@@ -54,6 +54,9 @@ const driveTypeNames: Record<number, string> = {
   6: 'DRIVE_RAMDISK',
 };
 
+let explorerReaddirInFlight = 0;
+const activeRecursiveExplorerPaths = new Set<string>();
+
 const getExplorerDriveLabel = (absolutePath: string): string => {
   if (absolutePath.startsWith('\\\\')) {
     const [server, share] = absolutePath.slice(2).split(/[\\/]+/);
@@ -880,7 +883,7 @@ MainMessenger.onMessageBoxSync(dialog);
 
 MainMessenger.onGetPath((path) => app.getPath(path));
 
-MainMessenger.onExplorerReadDirectory(async (absolutePath, forceRefresh = false) => {
+MainMessenger.onExplorerReadDirectory(async (absolutePath, forceRefresh = false, requestStartedAt = performance.now()) => {
   if (absolutePath === '::allusion-explorer-computer::') {
     if (process.platform === 'win32') {
       const rootsStartedAt = performance.now();
@@ -956,7 +959,9 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath, forceRefresh = false)
   if (typeof absolutePath !== 'string' || absolutePath.length === 0 || !path.isAbsolute(absolutePath)) {
     throw new Error('Explorer requires an absolute directory path.');
   }
+  const queueWaitMs = performance.now() - requestStartedAt;
   const readStartedAt = performance.now();
+  explorerReaddirInFlight++;
   let entries: import('fs').Dirent[];
   try {
     entries = await fse.readdir(absolutePath, { withFileTypes: true });
@@ -967,11 +972,13 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath, forceRefresh = false)
       return [];
     }
     throw error;
+  } finally {
+    explorerReaddirInFlight--;
   }
   const readDurationMs = performance.now() - readStartedAt;
   recordPerf('explorer.readdir', readDurationMs, {
     thresholdMs: 1000,
-    detail: `path=${absolutePath} entries=${entries.length} includeSubfolders=false mode=directory-tree context=folder-open drive=${getExplorerDriveLabel(absolutePath)}`,
+    detail: `path=${absolutePath} entries=${entries.length} includeSubfolders=false mode=directory-tree context=folder-open drive=${getExplorerDriveLabel(absolutePath)} inFlight=${explorerReaddirInFlight} queueWaitMs=${queueWaitMs.toFixed(1)} recursiveScans=${activeRecursiveExplorerPaths.size} activeScanPath=${[...activeRecursiveExplorerPaths][0] ?? 'none'}`,
   });
   const sortStartedAt = performance.now();
   const ignoredDirectories = new Set(['recovery', 'system volume information', '$recycle.bin', 'node_modules', '.git']);
@@ -992,11 +999,13 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath, forceRefresh = false)
   return result;
 });
 
-MainMessenger.onExplorerScanFiles(async (selectedPath, recursive, scanId, sender) => {
+MainMessenger.onExplorerScanFiles(async (selectedPath, recursive, scanId, sender, scanRequestStartedAt) => {
+  if (recursive) activeRecursiveExplorerPaths.add(selectedPath);
   const systemDirectories = new Set([
     'recovery', 'system volume information', '$recycle.bin', 'node_modules', '.git',
   ]);
   const directoryQueue = [selectedPath];
+  const directoryQueuedAt = new Map<string, number>([[selectedPath, scanRequestStartedAt]]);
   const visited = new Set<string>([selectedPath]);
   const chunk: string[] = [];
   let skippedPermissionErrors = 0;
@@ -1004,12 +1013,14 @@ MainMessenger.onExplorerScanFiles(async (selectedPath, recursive, scanId, sender
     while (directoryQueue.length && !MainMessenger.isExplorerScanCancelled(scanId)) {
       const directory = directoryQueue.pop()!;
       let entries: import('fs').Dirent[];
+      const readdirQueuedAt = directoryQueuedAt.get(directory) ?? performance.now();
+      explorerReaddirInFlight++;
       const readdirStartedAt = performance.now();
       try {
         entries = await fse.readdir(directory, { withFileTypes: true });
         recordPerf('explorer.readdir', performance.now() - readdirStartedAt, {
           thresholdMs: 1000,
-          detail: `path=${directory} entries=${entries.length} includeSubfolders=${recursive} mode=${recursive ? 'recursive-scan' : 'single-folder-scan'} context=${recursive ? 'recursive-scan' : 'folder-open'} drive=${getExplorerDriveLabel(directory)}`,
+          detail: `path=${directory} entries=${entries.length} includeSubfolders=${recursive} mode=${recursive ? 'recursive-scan' : 'single-folder-scan'} context=${recursive ? 'recursive-scan' : 'folder-open'} drive=${getExplorerDriveLabel(directory)} inFlight=${explorerReaddirInFlight} queueWaitMs=${(readdirStartedAt - readdirQueuedAt).toFixed(1)} recursiveScans=${activeRecursiveExplorerPaths.size} activeScanPath=${[...activeRecursiveExplorerPaths][0] ?? 'none'}`,
         });
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
@@ -1019,6 +1030,8 @@ MainMessenger.onExplorerScanFiles(async (selectedPath, recursive, scanId, sender
           continue;
         }
         throw error;
+      } finally {
+        explorerReaddirInFlight--;
       }
       recordPerfEvent('explorer.scan', 'directories');
       for (const entry of entries) {
@@ -1027,6 +1040,7 @@ MainMessenger.onExplorerScanFiles(async (selectedPath, recursive, scanId, sender
             const childPath = path.join(directory, entry.name);
             if (!visited.has(childPath)) {
               visited.add(childPath);
+              directoryQueuedAt.set(childPath, performance.now());
               directoryQueue.push(childPath);
             }
           }
@@ -1052,6 +1066,7 @@ MainMessenger.onExplorerScanFiles(async (selectedPath, recursive, scanId, sender
       error: error instanceof Error ? error.message : String(error),
     });
   } finally {
+    activeRecursiveExplorerPaths.delete(selectedPath);
     MainMessenger.finishExplorerScan(scanId);
   }
 });

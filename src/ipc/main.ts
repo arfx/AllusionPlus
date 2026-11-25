@@ -106,14 +106,14 @@ export class MainMessenger {
     ipcMain.handle(GET_PATH, (_, name) => cb(name));
 
   static onExplorerReadDirectory = (
-    cb: (absolutePath: string, forceRefresh?: boolean) => Promise<ExplorerDirectoryEntry[]>,
+    cb: (absolutePath: string, forceRefresh?: boolean, requestStartedAt?: number) => Promise<ExplorerDirectoryEntry[]>,
   ) => ipcMain.handle(
     EXPLORER_READ_DIRECTORY,
     async (_, request: ExplorerReadDirectoryRequest): Promise<ExplorerReadDirectoryResponse> => {
       const startedAt = performance.now();
       let entries: ExplorerDirectoryEntry[] = [];
       try {
-        entries = await cb(request.absolutePath, request.forceRefresh);
+        entries = await cb(request.absolutePath, request.forceRefresh, startedAt);
         return { requestId: request.requestId, absolutePath: request.absolutePath, entries };
       } finally {
         const handlerTotalMs = performance.now() - startedAt;
@@ -126,11 +126,11 @@ export class MainMessenger {
   );
 
   static onExplorerScanFiles = (
-    cb: (absolutePath: string, recursive: boolean, scanId: number, sender: WebContents) => Promise<void>,
+    cb: (absolutePath: string, recursive: boolean, scanId: number, sender: WebContents, requestStartedAt: number) => Promise<void>,
   ) => {
     ipcMain.on(EXPLORER_SCAN_FILES, (event, absolutePath: string, recursive: boolean, scanId: number) => {
       activeExplorerScans.add(scanId);
-      void cb(absolutePath, recursive, scanId, event.sender);
+      void cb(absolutePath, recursive, scanId, event.sender, performance.now());
     });
     ipcMain.on(EXPLORER_CANCEL_SCAN, (_, scanId: number) => {
       if (activeExplorerScans.has(scanId)) cancelledExplorerScans.add(scanId);
