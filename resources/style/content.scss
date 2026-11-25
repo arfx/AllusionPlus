@@ -465,6 +465,18 @@
     opacity: 0;
     animation: fade-out-bg 0.3s cubic-bezier(0.65, 0.05, 0.36, 1);
   }
+
+  // Used when the preview zoom animation is disabled: hide/show the gallery
+  // immediately instead of leaving a delayed fade on the surrounding content.
+  &.instant-in {
+    opacity: 1;
+    animation: none;
+  }
+
+  &.instant-out {
+    opacity: 0;
+    animation: none;
+  }
 }
 .preview-window-initializing #slide-mode.fade-in {
   // Preview window initializes with slide mode: fade-in is undesired
