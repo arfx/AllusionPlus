@@ -28,6 +28,15 @@ import { TagDTO, ROOT_TAG_ID } from './api/tag';
 import { MainMessenger } from './ipc/main';
 import { WindowSystemButtonPress, ExplorerDirectoryEntry } from './ipc/messages';
 
+const getExplorerDriveLabel = (absolutePath: string): string => {
+  if (absolutePath.startsWith('\\\\')) {
+    const [server, share] = absolutePath.slice(2).split(/[\\/]+/);
+    return server && share ? `\\\\${server}\\${share}` : 'network';
+  }
+  const drive = absolutePath.match(/^([a-zA-Z]:)[\\/]/);
+  return drive ? drive[1] : 'unknown';
+};
+
 // sets the userData path to the executables directory if the installation is portable
 const portablePath = process.env.PORTABLE_EXECUTABLE_DIR as string;
 portablePath && app.setPath('userData', path.join(portablePath, 'Allusion'));
@@ -884,7 +893,7 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
   const readDurationMs = performance.now() - readStartedAt;
   recordPerf('explorer.readdir', readDurationMs, {
     thresholdMs: 1000,
-    detail: `path=${absolutePath} entries=${entries.length} includeSubfolders=false mode=directory-tree`,
+    detail: `path=${absolutePath} entries=${entries.length} includeSubfolders=false mode=directory-tree context=folder-open drive=${getExplorerDriveLabel(absolutePath)}`,
   });
   const sortStartedAt = performance.now();
   const ignoredDirectories = new Set(['recovery', 'system volume information', '$recycle.bin', 'node_modules', '.git']);
@@ -922,7 +931,7 @@ MainMessenger.onExplorerScanFiles(async (selectedPath, recursive, scanId, sender
         entries = await fse.readdir(directory, { withFileTypes: true });
         recordPerf('explorer.readdir', performance.now() - readdirStartedAt, {
           thresholdMs: 1000,
-          detail: `path=${directory} entries=${entries.length} includeSubfolders=${recursive} mode=${recursive ? 'recursive-scan' : 'single-folder-scan'}`,
+          detail: `path=${directory} entries=${entries.length} includeSubfolders=${recursive} mode=${recursive ? 'recursive-scan' : 'single-folder-scan'} context=${recursive ? 'recursive-scan' : 'folder-open'} drive=${getExplorerDriveLabel(directory)}`,
         });
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
