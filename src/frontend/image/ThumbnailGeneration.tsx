@@ -324,18 +324,28 @@ export const useWorkerListener = () => {
         }
         previewListeners.delete(e.data.fileId);
         const request = workerByFileId.get(e.data.fileId);
-        if (request?.workerIndex === workerIndex && e.data.queueWaitMs !== undefined) {
-          const metadata = thumbnailRequestMetadata.get(e.data.fileId);
-          const totalMs = performance.now() - (metadata?.startedAt ?? performance.now());
-          recordPerf('thumbnail.total', totalMs, { thresholdMs: 500, detail: `type=${metadata?.extension ?? 'unknown'}` });
-          const queueWaitMs = e.data.queueWaitMs ?? 0;
-          queueLengthByWorker.set(workerIndex, Math.max(0, (queueLengthByWorker.get(workerIndex) ?? 1) - 1));
-          setPerfGauge('thumbnail', 'queueLength', e.data.queueLength ?? [...queueLengthByWorker.values()].reduce((sum, length) => sum + length, 0));
-          recordPerf('thumbnail.queueWait', queueWaitMs);
-          if (e.data.decodeMs !== undefined) recordPerf('thumbnail.decode', e.data.decodeMs);
-          if (e.data.encodeMs !== undefined) recordPerf('thumbnail.encode', e.data.encodeMs);
-          if (e.data.writeMs !== undefined) recordPerf('thumbnail.write', e.data.writeMs);
-          if (e.data.outputFormat) recordPerfEvent('thumbnail', `format.${e.data.outputFormat}`);
+        if (request?.workerIndex === workerIndex) {
+          // Every terminal response releases one renderer-side worker slot,
+          // including queue drops, explicit cancellations and generation errors.
+          queueLengthByWorker.set(
+            workerIndex,
+            Math.max(0, (queueLengthByWorker.get(workerIndex) ?? 1) - 1),
+          );
+          setPerfGauge(
+            'thumbnail',
+            'queueLength',
+            [...queueLengthByWorker.values()].reduce((sum, length) => sum + length, 0),
+          );
+          if (e.data.queueWaitMs !== undefined) {
+            const metadata = thumbnailRequestMetadata.get(e.data.fileId);
+            const totalMs = performance.now() - (metadata?.startedAt ?? performance.now());
+            recordPerf('thumbnail.total', totalMs, { thresholdMs: 500, detail: `type=${metadata?.extension ?? 'unknown'}` });
+            recordPerf('thumbnail.queueWait', e.data.queueWaitMs);
+            if (e.data.decodeMs !== undefined) recordPerf('thumbnail.decode', e.data.decodeMs);
+            if (e.data.encodeMs !== undefined) recordPerf('thumbnail.encode', e.data.encodeMs);
+            if (e.data.writeMs !== undefined) recordPerf('thumbnail.write', e.data.writeMs);
+            if (e.data.outputFormat) recordPerfEvent('thumbnail', `format.${e.data.outputFormat}`);
+          }
           recordPerfEvent('thumbnail', e.data.success === false ? 'failed' : 'generated');
         }
         finishRequest(
