@@ -26,7 +26,15 @@ const SlideMode = observer(({ contentRect }: { contentRect: ContentRect }) => {
   return (
     <Split
       id="slide-mode"
-      className={uiStore.isSlideMode ? 'fade-in' : 'fade-out'}
+      className={
+        uiStore.isSlideZoomAnimationEnabled
+          ? uiStore.isSlideMode
+            ? 'fade-in'
+            : 'fade-out'
+          : uiStore.isSlideMode
+          ? 'instant-in'
+          : 'instant-out'
+      }
       primary={<Inspector />}
       secondary={<SlideView width={contentWidth} height={contentHeight} />}
       axis="vertical"
@@ -228,7 +236,7 @@ const ZoomableImage: React.FC<ZoomableImageProps> = ({
   onClose,
   upscaleMode,
 }: ZoomableImageProps) => {
-  const { imageLoader } = useStore();
+  const { imageLoader, uiStore } = useStore();
   const { absolutePath, width: imgWidth, height: imgHeight } = file;
   const [openingTransitionComplete, setOpeningTransitionComplete] = useState(!transitionStart);
   // Image src can be set asynchronously: keep track of it in a state
@@ -323,6 +331,7 @@ const ZoomableImage: React.FC<ZoomableImageProps> = ({
           onClose={onClose}
           onTransitionComplete={() => setOpeningTransitionComplete(true)}
           upscaleMode={upscaleMode}
+          allowUpscale={uiStore.isSlidePreviewFitToWindowEnabled}
         >
           {(props) => (
             <video
