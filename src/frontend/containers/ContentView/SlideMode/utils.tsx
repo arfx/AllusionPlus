@@ -66,11 +66,13 @@ function isClose(a: number, b: number, tolerance: number) {
 export const getAutofitScale = (
   [containerWidth, containerHeight]: Dimension,
   [imageWidth, imageHeight]: Dimension,
+  allowUpscale: boolean = false,
 ): number => {
   if (imageWidth <= 0 || imageHeight <= 0) {
     return 1;
   }
-  return Math.min(containerWidth / imageWidth, containerHeight / imageHeight, 1);
+  const fitScale = Math.min(containerWidth / imageWidth, containerHeight / imageHeight);
+  return allowUpscale ? fitScale : Math.min(fitScale, 1);
 };
 
 export const tryPreventDefault = (event: { cancelable: boolean; preventDefault: () => void }) => {
