@@ -41,6 +41,7 @@ export interface ZoomPanProps {
   containerDimension: Dimension;
   onClose?: () => void;
   upscaleMode: UpscaleMode;
+  allowUpscale?: boolean;
 
   transitionStart?: Transform;
   transitionEnd?: Transform;
@@ -207,7 +208,7 @@ export default class ZoomPan extends React.Component<ZoomPanProps, ZoomPanState>
         this.startAnimation(resetTransform(props, this.setState));
         break;
       case 'zoomOrReset':
-        const initialScale = getAutofitScale(props.containerDimension, props.imageDimension);
+        const initialScale = getAutofitScale(props.containerDimension, props.imageDimension, props.allowUpscale);
         // If current scale is same as initial scale, zoom in, otherwise reset to initial zoom
         if (Math.abs(this.state.scale - initialScale) < 0.01) {
           this.zoomIn(position);
@@ -348,7 +349,7 @@ function getTransform(props: Readonly<ZoomPanProps>): Transform {
   const { position, initialScale, minScale, maxScale, imageDimension, containerDimension } = props;
 
   const scale = clamp(
-    initialScale === 'auto' ? getAutofitScale(containerDimension, imageDimension) : initialScale,
+    initialScale === 'auto' ? getAutofitScale(containerDimension, imageDimension, props.allowUpscale) : initialScale,
     minScale,
     maxScale,
   );
