@@ -133,6 +133,12 @@ export const Appearance = observer(() => {
 
       <div className="vstack">
         <Toggle
+          checked={uiStore.isThumbnailLoadingOverlayEnabled}
+          onChange={uiStore.toggleThumbnailLoadingOverlay}
+        >
+          Show thumbnail loading overlay
+        </Toggle>
+        <Toggle
           checked={uiStore.isThumbnailFilenameOverlayEnabled}
           onChange={uiStore.toggleThumbnailFilenameOverlay}
         >
