@@ -120,7 +120,6 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
   const { uiStore, fileStore } = useStore();
   const showContextMenu = useContextMenu();
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({});
-  const pendingDirectoryReads = useRef(new Map<string, Promise<ExplorerDirectoryEntry[]>>());
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [isChoosingDirectory, setIsChoosingDirectory] = useState(false);
   const [includeSubfolders, setIncludeSubfolders] = useState(uiStore.explorerIncludeSubfolders);
@@ -152,41 +151,30 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
     ]);
   }, [includeSubfolders, uiStore]);
 
-  const readDirectory = useCallback((absolutePath: string): Promise<ExplorerDirectoryEntry[]> => {
-    const pending = pendingDirectoryReads.current.get(absolutePath);
-    if (pending) return pending;
-
+  const readDirectory = useCallback(async (absolutePath: string): Promise<ExplorerDirectoryEntry[]> => {
     setDirectories((previous) => ({
       ...previous,
       [absolutePath]: { ...previous[absolutePath], entries: previous[absolutePath]?.entries ?? [], loading: true },
     }));
-
-    const request = RendererMessenger.explorerReadDirectory(absolutePath)
-      .then((entries) => {
-        setDirectories((previous) => ({
-          ...previous,
-          [absolutePath]: {
-            entries,
-            loading: false,
-            hasSubfolders: entries.some((entry) => entry.isDirectory),
-          },
-        }));
-        return entries;
-      })
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        setDirectories((previous) => ({
-          ...previous,
-          [absolutePath]: { entries: [], loading: false, hasSubfolders: false, error: message },
-        }));
-        return [];
-      })
-      .finally(() => {
-        pendingDirectoryReads.current.delete(absolutePath);
-      });
-
-    pendingDirectoryReads.current.set(absolutePath, request);
-    return request;
+    try {
+      const entries = await RendererMessenger.explorerReadDirectory(absolutePath);
+      setDirectories((previous) => ({
+        ...previous,
+        [absolutePath]: {
+          entries,
+          loading: false,
+          hasSubfolders: entries.some((entry) => entry.isDirectory),
+        },
+      }));
+      return entries;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setDirectories((previous) => ({
+        ...previous,
+        [absolutePath]: { entries: [], loading: false, hasSubfolders: false, error: message },
+      }));
+      return [];
+    }
   }, []);
 
   useEffect(() => {
@@ -279,14 +267,13 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
         uiStore.removeSearchCriteriaByKey('absolutePath');
         uiStore.setExplorerCurrentDirectory(result.filePaths[0]);
         setDirectoryRefreshVersion((version) => version + 1);
-        void readDirectory(result.filePaths[0]);
       }
     } catch (error) {
       console.error('Could not choose Explorer directory', error);
     } finally {
       setIsChoosingDirectory(false);
     }
-  }, [readDirectory, uiStore]);
+  }, [uiStore]);
 
   const selectDirectory = useCallback(
     (absolutePath: string) => {
@@ -296,11 +283,8 @@ const ExplorerPanel = observer((props: Partial<MultiSplitPaneProps>) => {
       uiStore.removeSearchCriteriaByKey('absolutePath');
       uiStore.setExplorerCurrentDirectory(absolutePath);
       setDirectoryRefreshVersion((version) => version + 1);
-      if (!directories[absolutePath] || directories[absolutePath].error) {
-        void readDirectory(absolutePath);
-      }
     },
-    [directories, readDirectory, uiStore],
+    [uiStore],
   );
 
     const toggleFolder = useCallback(

@@ -12,8 +12,10 @@ type PerfBucket = {
 };
 
 const buckets = new Map<string, PerfBucket>();
+const firstSeenAt = new Map<string, number>();
 const pendingEvents = new Map<string, number>();
 const pendingGauges = new Map<string, number>();
+const thumbnailRequestTimes = new Map<string, number>();
 
 export const isPerfEnabled = (): boolean => process.env.ALLUSION_PERF === '1';
 
@@ -45,6 +47,7 @@ export const recordPerf = (
 ): void => {
   if (!isPerfEnabled() || !Number.isFinite(durationMs)) return;
   const bucket = getBucket(category);
+  firstSeenAt.set(category, firstSeenAt.get(category) ?? Date.now());
   bucket.count++;
   bucket.sum += durationMs;
   bucket.min = Math.min(bucket.min, durationMs);
@@ -60,11 +63,14 @@ export const recordPerfEvent = (category: string, name: string, amount = 1): voi
   if (!isPerfEnabled()) return;
   const key = `${category}.${name}`;
   pendingEvents.set(key, (pendingEvents.get(key) ?? 0) + amount);
+  if (!buckets.has(category)) getBucket(category);
+  if (category === 'thumbnail' && name === 'request') thumbnailRequestTimes.set('thumbnail', Date.now());
 };
 
 export const setPerfGauge = (category: string, name: string, value: number): void => {
   if (!isPerfEnabled()) return;
   pendingGauges.set(`${category}.${name}`, value);
+  if (!buckets.has(category)) getBucket(category);
 };
 
 const percentile = (samples: number[], fraction: number): number => {
@@ -83,25 +89,33 @@ const flush = (): void => {
     const bucket = getBucket(category);
     if (!bucket.count && ![...pendingEvents.keys(), ...pendingGauges.keys()].some((key) => key.startsWith(`${category}.`))) continue;
     const samples = bucket.samples;
-    const fields = [`n=${bucket.count}`, `sum=${round(bucket.sum)}ms`, `min=${round(bucket.min)}ms`,
+    const min = bucket.count ? bucket.min : 0;
+    const max = bucket.count ? bucket.max : 0;
+    const fields = [`n=${bucket.count}`, `sum=${round(bucket.sum)}ms`, `min=${round(min)}ms`,
       `p50=${round(percentile(samples, 0.5))}ms`, `p95=${round(percentile(samples, 0.95))}ms`,
-      `max=${round(bucket.max)}ms`];
+      `max=${round(max)}ms`];
     for (const [key, value] of pendingEvents) {
-      if (key.startsWith(`${category}.`)) fields.push(`${key.slice(category.length + 1)}=${round(value)}`);
+      if (key.startsWith(`${category}.`) && !(category === 'thumbnail' && key === 'thumbnail.request')) {
+        fields.push(`${key.slice(category.length + 1)}=${round(value)}`);
+      }
     }
-    if (category === 'thumbnail') {
-      const generated = pendingEvents.get('thumbnail.generated') ?? 0;
-      const cacheHits = pendingEvents.get('thumbnail.cacheHits') ?? 0;
-      const cacheMisses = pendingEvents.get('thumbnail.cacheMisses') ?? 0;
+    if (category.startsWith('thumbnail')) {
+      const generated = pendingEvents.get(`${category}.generated`) ?? 0;
+      const elapsedSeconds = Math.max(0.001, (Date.now() - (thumbnailRequestTimes.get('thumbnail') ?? Date.now())) / 1000);
+      const cacheHits = pendingEvents.get(`${category}.cacheHits`) ?? 0;
+      const cacheMisses = pendingEvents.get(`${category}.cacheMisses`) ?? 0;
       const totalCacheRequests = cacheHits + cacheMisses;
-      fields.push(`perSec=${round(generated / (FLUSH_INTERVAL_MS / 1000))}`);
-      fields.push(`cacheHitRate=${round(totalCacheRequests ? cacheHits / totalCacheRequests * 100 : 0)}%`);
+      if (generated || totalCacheRequests) {
+        fields.push(`perSec=${round(generated / elapsedSeconds)}`);
+        fields.push(`cacheHitRate=${round(totalCacheRequests ? cacheHits / totalCacheRequests * 100 : 0)}%`);
+      }
     }
     for (const [key, value] of pendingGauges) {
       if (key.startsWith(`${category}.`)) fields.push(`${key.slice(category.length + 1)}=${round(value)}`);
     }
     writeLine(`[perf] ${category} ${fields.join(' ')}`);
     buckets.set(category, { count: 0, sum: 0, min: Infinity, max: -Infinity, samples: [] });
+    firstSeenAt.set(category, Date.now());
   }
   pendingEvents.clear();
   pendingGauges.clear();

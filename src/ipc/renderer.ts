@@ -1,5 +1,4 @@
 import { ipcRenderer } from 'electron';
-import { recordPerf } from '../../common/perf';
 import path from 'path';
 import {
   ADD_TAGS_TO_FILE,
