@@ -883,8 +883,8 @@ MainMessenger.onExplorerReadDirectory(async (absolutePath) => {
   }
   const readDurationMs = performance.now() - readStartedAt;
   recordPerf('explorer.readdir', readDurationMs, {
-    thresholdMs: 50,
-    detail: `entries=${entries.length}`,
+    thresholdMs: 1000,
+    detail: `path=${absolutePath} entries=${entries.length} includeSubfolders=false mode=directory-tree`,
   });
   const sortStartedAt = performance.now();
   const ignoredDirectories = new Set(['recovery', 'system volume information', '$recycle.bin', 'node_modules', '.git']);
@@ -921,8 +921,8 @@ MainMessenger.onExplorerScanFiles(async (selectedPath, recursive, scanId, sender
       try {
         entries = await fse.readdir(directory, { withFileTypes: true });
         recordPerf('explorer.readdir', performance.now() - readdirStartedAt, {
-          thresholdMs: 50,
-          detail: `entries=${entries.length}`,
+          thresholdMs: 1000,
+          detail: `path=${directory} entries=${entries.length} includeSubfolders=${recursive} mode=${recursive ? 'recursive-scan' : 'single-folder-scan'}`,
         });
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
